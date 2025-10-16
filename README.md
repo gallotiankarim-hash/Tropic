@@ -65,11 +65,10 @@ Suivez ces étapes pour lancer TROPIC dans votre environnement :
 
 1.  **Cloner le dépôt GitHub :**
     ```bash
-    git clone [https://github.com/votre-utilisateur/votre-projet.git](https://github.com/votre-utilisateur/votre-projet.git)
-    cd votre-projet
+    git clone [https://github.com/gallotiankarim-hash/Tropic]
+    cd Tropic
     ```
-    *(Remplacez `votre-utilisateur/votre-projet` par le chemin réel de votre dépôt.)*
-
+    
 2.  **Installer les dépendances Python :**
     ```bash
     pip install -r requirements.txt
