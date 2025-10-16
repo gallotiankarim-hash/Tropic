@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/user-attachments/assets/c5029ee6-0428-4e42-be16-d9b8976b059e/logo_tropic_readme.png" alt="TROPIC Logo" width="350"/>
+  <img src="https://raw.githubusercontent.com/gallotiankarim-hash/Tropic/ce9a0afef78a8cc702c561881b8c09978537c5e0/assets/IMG_3503.jpeg" alt="TROPIC Logo Cyber/Matrix" width="500"/>
   <h1>TROPIC :: Multi-Module Security Analyzer 🌴</h1>
   <p>Développé et maintenu par <b>Karim.</b></p>
   <p>Un outil de sécurité robuste et éthique, conçu pour les Hackers Éthiques et les professionnels de la cybersécurité.</p>
