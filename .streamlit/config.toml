@@ -1,0 +1,13 @@
+# .streamlit/config.toml
+
+[theme]
+base="dark" 
+backgroundColor="#0d1117"
+secondaryBackgroundColor="#161b22"
+primaryColor="#00c400"
+textColor="#a9ffb4"
+font="monospace"
+
+[server]
+runOnSave = true
+port = 8501 
