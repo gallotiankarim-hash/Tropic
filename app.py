@@ -300,10 +300,10 @@ def main():
         unsafe_allow_html=True
     )
     
-    st.title("TROPIC :: Multi-Module Security Analyzer 🌴")
+    st.title("TROPIC 🌴")
     
     # Intégration de la mention "By Karim"
-    st.markdown("Développé et maintenu par **Karim**. | Outil de sécurité complet en 3 phases, incluant un exécuteur de commandes post-scan.")
+    st.markdown("Développé et maintenu par **Karim93160**. | Outil de sécurité complet en 3 phases, incluant un exécuteur de commandes post-scan.")
 
     # AVERTISSEMENT RED FLAG MASSIF
     st.markdown("""
