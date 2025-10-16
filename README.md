@@ -73,7 +73,6 @@ Suivez ces étapes pour lancer TROPIC dans votre environnement :
     ```bash
     pip install -r requirements.txt
     ```
-    *(**Note :** Vous devrez créer un fichier `requirements.txt` contenant : `streamlit`, `requests`, `pandas`)*
 
 ### Lancement de l'Application
 
