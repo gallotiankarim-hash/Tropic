@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE AVEC CONSOLE PERSISTANTE ET STATUS) - FORCE REAL POC ENABLED
+# app.py (VERSION FINALE PROPRE, MODULAIRE ET STABLE)
 import streamlit as st
 import pandas as pd
 import json
@@ -8,6 +8,9 @@ from io import StringIO
 from datetime import datetime
 import subprocess
 import time
+
+# 🔥 Importation du module de console séparé (doit être dans poc_console.py) 🔥
+from poc_console import render_poc_console 
 
 # Importation des moteurs d'analyse.
 try:
@@ -20,7 +23,6 @@ except ImportError as e:
     def placeholder_func(*args, **kwargs):
         if kwargs.get('command'):
             return f"ERREUR CRITIQUE: Le module de sécurité est manquant. Détails: {e}", 500
-        # Pour les fonctions de scan, on lève l'exception si on tente de les appeler sans 'command'
         raise ImportError(f"FATAL ERROR: Security module missing or misnamed. Details: {e}") 
     run_recon = run_api_scan = run_vulnerability_scan = simulate_poc_execution = placeholder_func
     SECURITY_SCORE_WEIGHTS = {'ENDPOINT_EXPOSED': 15, 'INJECTION_VULNERABLE': 30, 'PARAM_REFLECTION': 10}
@@ -34,8 +36,7 @@ def execute_and_capture(func, target, config=None, module_name="Module"):
     """Exécute une fonction d'analyse et capture son output stdout/logs."""
     
     if module_name == "Module 3": 
-        # Le Module 3 (Vulnerability Scan) utilise un générateur pour les logs en temps réel, 
-        # il n'est donc pas exécuté ici. Le code principal gère son exécution.
+        # Le Module 3 (Vulnerability Scan) utilise un générateur pour les logs en temps réel.
         return "", 0 
         
     start_time = datetime.now()
@@ -211,84 +212,6 @@ def display_vuln_scan_report(target):
     else:
         st.info("Aucune vulnérabilité n'a été trouvée.")
 
-# Fonction pour l'interface du Shell Simulé (Console de Diagnostic Actif)
-def display_active_diagnostic_console(target, user_config):
-    """
-    Console PoC robuste — utilise st.session_state et un callback pour la persistance.
-    """
-    st.header(f"💻 Console PoC Actif - {target}")
-    st.warning("⚠️ Utilisez uniquement sur des cibles autorisées.")
-
-    # Les clés shell_cmd_history et current_shell_command_input sont initialisées dans main().
-    
-    # --- HANDLER D'EXÉCUTION (POUR LE CALLBACK DU BOUTON/ENTRÉE) ---
-    def execute_shell_command():
-        """Exécute la commande PoC et met à jour l'historique directement via la session state."""
-        
-        # Récupère la commande saisie via sa clé
-        command = st.session_state.current_shell_command_input.strip()
-        
-        if not command:
-            # Vider le champ d'entrée même si vide
-            st.session_state.current_shell_command_input = "" 
-            return 
-
-        new_output = ""
-        status_code = 500
-        
-        # --- BLOC D'EXÉCUTION DU PoC (avec gestion des erreurs) ---
-        try:
-            force_real = bool(user_config.get('allow_real_poc', True))
-            # Exécution du PoC (via le Module 3)
-            new_output, status_code = simulate_poc_execution(target, command, force_real=force_real)
-        except Exception as e:
-            # Gestion des erreurs d'importation, de type ou autres
-            new_output = f"ERREUR CRITIQUE D'EXÉCUTION: {str(e)}"
-            status_code = 500
-        
-        # Construit le nouveau contenu pour l'affichage (ajoute la commande et la sortie)
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.shell_cmd_history += f"[{timestamp}] tropic@{target}:~# {command}\n"
-        st.session_state.shell_cmd_history += f"STATUT HTTP : {status_code}\n"
-        st.session_state.shell_cmd_history += new_output + "\n\n"
-        
-        # Pour vider visuellement le champ de saisie après l'exécution
-        st.session_state.current_shell_command_input = "" 
-
-
-    # --- INTERFACE DE COMMANDE ---
-
-    # Champ de saisie pour la commande
-    command_input = st.text_input(
-        f"tropic@{target}:~# ", 
-        key="current_shell_command_input", 
-        label_visibility="collapsed",
-        # Le on_change permet d'exécuter la commande si l'utilisateur appuie sur ENTER
-        on_change=execute_shell_command 
-    )
-    
-    col1, col2 = st.columns([1, 4])
-    
-    with col1:
-        # Le bouton déclenche l'exécution en utilisant le handler
-        execute_button = st.button(
-            "Exécuter PoC", 
-            type="secondary", 
-            use_container_width=True, 
-            on_click=execute_shell_command # Le clic exécute directement la fonction de mise à jour de l'état
-        )
-
-    # Affichage de la Console
-    st.markdown("---")
-    # L'accès direct corrigé à la clé initialisée
-    # Correction de l'erreur ici : on s'assure que shell_cmd_history est dans le state (initialisé dans main)
-    st.code(
-        st.session_state.shell_cmd_history 
-        if st.session_state.shell_cmd_history 
-        else "Tapez 'id' ou 'ls' pour tester l'accès (PoC) et appuyez sur ENTRÉE ou cliquez sur 'Exécuter PoC'.", 
-        language='bash'
-    )
-
 
 # ===============================================================================
 #                             INTERFACE PRINCIPALE
@@ -397,8 +320,11 @@ def main():
     # --- CHARGEMENT DE LA CONFIGURATION UTILISATEUR ---
     user_config = load_user_config()
 
-    # --- PERSISTANCE SESSION_STATE (Module 3 & Console PoC) ---
-    # Initialise les clés nécessaires pour éviter l'éjection de la console PoC après un rerun
+    # --------------------------------------------------------------------------
+    # --- PERSISTANCE SESSION_STATE (INITIALISATION CLASSIQUE ET CORRIGÉE) ---
+    # --------------------------------------------------------------------------
+    
+    # Initialise les clés nécessaires pour les modules principaux
     if 'module3_logs' not in st.session_state:
         st.session_state['module3_logs'] = ""
     if 'module3_elapsed' not in st.session_state:
@@ -408,9 +334,13 @@ def main():
     if 'module3_running' not in st.session_state:
         st.session_state['module3_running'] = False
         
-    # 🔥 CORRECTION 🔥 : Initialisation pour la console de diagnostic active (PoC)
-    if 'shell_cmd_history' not in st.session_state:
-        st.session_state['shell_cmd_history'] = ""
+    # ✅ Clés nécessaires pour la console PoC (maintenant au format LISTE pour la performance)
+    if 'shell_cmd_history' in st.session_state:
+        # Nettoyage de l'ancienne clé string si elle existe pour éviter les conflits
+        del st.session_state['shell_cmd_history']
+        
+    if 'shell_cmd_history_list' not in st.session_state:
+        st.session_state['shell_cmd_history_list'] = [] # Nouvelle clé: Liste vide
     if 'current_shell_command_input' not in st.session_state:
         st.session_state['current_shell_command_input'] = ""
 
@@ -475,10 +405,8 @@ def main():
                 st.warning("⏩ Skipping Module 3 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
             else:
                 
-                # --- BARRE DE STATUT & PROGRESSION DANS LE CONTENEUR PRINCIPAL ---
                 st.subheader("💻 Terminal d'Exploitation en Temps Réel (Logs)")
                 
-                # Relancer manuellement si besoin (reset du state)
                 col_r1, col_r2 = st.columns([4, 1])
                 with col_r2:
                     if st.button("🔁 Relancer Module 3 (Vuln. Scan)"):
@@ -486,53 +414,37 @@ def main():
                         st.session_state['module3_elapsed'] = 0.0
                         st.session_state['module3_run_id'] = None
                         st.session_state['module3_running'] = False
-                        # Force la relance immédiate
                         run_vuln_module = True
 
-                # Si on a déjà un log final sauvegardé POUR CETTE CIBLE, on l'affiche (persistant entre reruns)
                 if st.session_state.get('module3_run_id') == target_domain and st.session_state.get('module3_logs') and not st.session_state.get('module3_running'):
                     elapsed = st.session_state.get('module3_elapsed', 0.0)
                     st.success(f"Module 3 : Dernier scan pour {target_domain} (terminé en {elapsed:.2f}s).")
                     st.code(st.session_state['module3_logs'], language='bash')
-                    # Toujours afficher le rapport final si disponible
                     display_vuln_scan_report(target_domain)
                     st.markdown("---")
-                # Si un scan est en cours sur cette session (déjà lancé dans la même run)
                 elif st.session_state.get('module3_running', False) and st.session_state.get('module3_run_id') == target_domain:
                     st.info("Un scan Module 3 est en cours (sous cette session). Affichage des logs en direct.")
                     st.code(st.session_state['module3_logs'], language='bash')
                 else:
-                    # Aucun log sauvegardé pour cette cible -> on lance le generator *uniquement maintenant*
                     with placeholder.status(f"Module 3: Préparation du Scan de Vulnérabilités Avancé sur **{target_domain}**...", expanded=True) as status:
                         
-                        # Place la barre de progression DANS le statut
                         progress_bar = status.progress(0, text="Initialisation...")
-                        
-                        # Crée un placeholder pour les logs DANS le statut pour les logs de progression/processus
                         status_log_area = status.empty() 
-                        full_log_text = ""
                         
                         start_time = datetime.now()
-                        
-                        # Marque l'exécution en cours dans le session_state (empêche relance involontaire)
                         st.session_state['module3_running'] = True
                         st.session_state['module3_run_id'] = target_domain
-                        st.session_state['module3_logs'] = ""  # reset live accumulation
+                        st.session_state['module3_logs'] = "" 
 
-                        # L'exécution du générateur de scan
                         scan_generator = run_vulnerability_scan(target_domain, user_config)
-                        
-                        # Affiche le conteneur de logs réels juste en dessous de la barre de statut principale
                         log_area_main = st.empty() 
                         
                         for log_line in scan_generator:
                             
-                            # 1. Mise à jour de la barre de progression (détection du format [STATE])
                             try:
                                 if isinstance(log_line, str) and log_line.startswith("[STATE]"):
                                     try:
                                         parts = log_line[7:].strip().split('/')
-                                        # support formats like "X/Y" or other messages "message"
                                         if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
                                             completed = int(parts[0])
                                             total = int(parts[1])
@@ -540,35 +452,25 @@ def main():
                                             progress_bar.progress(percent_complete, text=f"Scanning... {completed}/{total} cibles.")
                                             status_log_area.write(f"Avancement: {completed} de {total} cibles...")
                                         else:
-                                            # not numeric progress; display as status message
                                             status_log_area.write(log_line[7:].strip())
                                     except Exception:
                                         status_log_area.write(f"Log de statut: {log_line}")
                                 else:
-                                    # 2. Affichage du Log normal (pour le terminal principal)
-                                    full_log_text += f"\n{log_line}"
-                                    # Stocke aussi progressivement dans session_state pour persistance en cas de rerun
                                     st.session_state['module3_logs'] = (st.session_state.get('module3_logs','') + "\n" + str(log_line)).strip()
                                     log_area_main.code(st.session_state['module3_logs'], language='bash') 
                             except Exception as e:
-                                # En cas d'erreur lors du traitement d'une ligne, on l'ajoute au log
-                                full_log_text += f"\n[LOG-PROCESS-ERROR] {str(e)}\n{repr(log_line)}"
                                 st.session_state['module3_logs'] = (st.session_state.get('module3_logs','') + "\n" + f"[LOG-PROCESS-ERROR] {str(e)}").strip()
                                 log_area_main.code(st.session_state['module3_logs'], language='bash')
 
                         elapsed_time = (datetime.now() - start_time).total_seconds()
                         
-                        # Sauvegarde finale dans le session_state
                         st.session_state['module3_elapsed'] = elapsed_time
                         st.session_state['module3_running'] = False
                         
-                        # Finalisation du statut
                         status.update(label=f"✅ Module 3 (Vuln. Scan) terminé en {elapsed_time:.2f}s", state="complete", expanded=False)
 
-                        # Mise à jour des logs finaux (all_logs)
                         all_logs.append(f"\n--- LOGS MODULE 3 ({elapsed_time:.2f}s) ---\n" + st.session_state.get('module3_logs', ''))
                         
-                        # Affiche le rapport de vulnérabilités si généré par le module
                         display_vuln_scan_report(target_domain)
                         st.markdown("---")
         
@@ -584,8 +486,8 @@ def main():
         
         # 5. CONSOLE DE DIAGNOSTIC ACTIF
         st.markdown("---")
-        # On passe user_config pour que la console sache si l'on force l'exécution réelle
-        display_active_diagnostic_console(target_domain, user_config)
+        # 🔥 Appel du module externe de console pour l'interface fluide 🔥
+        render_poc_console(target_domain, user_config)
         
         # Section de Documentation Éthique et Méthodologie
         st.markdown("---")

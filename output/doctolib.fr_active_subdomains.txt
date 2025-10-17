@@ -1,0 +1,4 @@
+doctolib.fr
+admin.doctolib.fr
+api.doctolib.fr
+www.doctolib.fr

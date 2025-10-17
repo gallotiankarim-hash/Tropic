@@ -1,0 +1,692 @@
+{
+    "metadata": {
+        "target_domain": "doctolib.fr",
+        "scanner": "TROPIC API/HEADER Analyzer (v2.3)",
+        "injections_detected": 0,
+        "reflections_detected": 0
+    },
+    "scan_results": [
+        {
+            "target_url": "https://doctolib.fr",
+            "final_score": 10,
+            "header_findings": [
+                {
+                    "severity": "CRITICAL",
+                    "type": "HEADER_MISSING",
+                    "header": "Content-Security-Policy",
+                    "description": "Header Content-Security-Policy manquant. Risque de Content-Security-Policy non impl\u00e9ment\u00e9. (-20 pts)"
+                },
+                {
+                    "severity": "HIGH",
+                    "type": "HEADER_MISSING",
+                    "header": "ENDPOINT_EXPOSED",
+                    "description": "Header ENDPOINT_EXPOSED manquant. Risque de ENDPOINT_EXPOSED non impl\u00e9ment\u00e9. (-15 pts)"
+                },
+                {
+                    "severity": "CRITICAL",
+                    "type": "HEADER_MISSING",
+                    "header": "INJECTION_VULNERABLE",
+                    "description": "Header INJECTION_VULNERABLE manquant. Risque de INJECTION_VULNERABLE non impl\u00e9ment\u00e9. (-30 pts)"
+                },
+                {
+                    "severity": "HIGH",
+                    "type": "HEADER_MISSING",
+                    "header": "PARAM_REFLECTION",
+                    "description": "Header PARAM_REFLECTION manquant. Risque de PARAM_REFLECTION non impl\u00e9ment\u00e9. (-10 pts)"
+                }
+            ],
+            "api_discovery": [
+                {
+                    "endpoint": "/api/v1/users",
+                    "status": 410,
+                    "description": "Protected/Client Error (410)"
+                },
+                {
+                    "endpoint": "/api/v2/config",
+                    "status": 410,
+                    "description": "Protected/Client Error (410)"
+                },
+                {
+                    "endpoint": "/api/v3/auth",
+                    "status": 410,
+                    "description": "Protected/Client Error (410)"
+                },
+                {
+                    "endpoint": "/v1/secret",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/v2/admin",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/v1/debug",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/test/data",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/staging/db",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/temp/files",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/logs/access",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/admin/settings",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/panel/login",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/web.config",
+                    "status": 403,
+                    "description": "Protected/Client Error (403)"
+                },
+                {
+                    "endpoint": "/.htaccess",
+                    "status": 403,
+                    "description": "Protected/Client Error (403)"
+                },
+                {
+                    "endpoint": "/crossdomain.xml",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/api/status",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/health",
+                    "status": 200,
+                    "description": "Found (200 OK)"
+                },
+                {
+                    "endpoint": "/metrics",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/info",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/version",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/public/users",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/client/v1",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/portal/data",
+                    "status": 404,
+                    "description": "Redirect Final Status (404)"
+                },
+                {
+                    "endpoint": "/docs",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/robots.txt",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/sitemap.xml",
+                    "status": 0,
+                    "description": "Connection Error"
+                },
+                {
+                    "endpoint": "/assets/js/main.js",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                }
+            ],
+            "injection_detected": false,
+            "reflection_detected": false
+        },
+        {
+            "target_url": "https://admin.doctolib.fr",
+            "final_score": 0,
+            "header_findings": [
+                {
+                    "severity": "HIGH",
+                    "type": "HEADER_MISSING",
+                    "header": "ENDPOINT_EXPOSED",
+                    "description": "Header ENDPOINT_EXPOSED manquant. Risque de ENDPOINT_EXPOSED non impl\u00e9ment\u00e9. (-15 pts)"
+                },
+                {
+                    "severity": "CRITICAL",
+                    "type": "HEADER_MISSING",
+                    "header": "INJECTION_VULNERABLE",
+                    "description": "Header INJECTION_VULNERABLE manquant. Risque de INJECTION_VULNERABLE non impl\u00e9ment\u00e9. (-30 pts)"
+                },
+                {
+                    "severity": "HIGH",
+                    "type": "HEADER_MISSING",
+                    "header": "PARAM_REFLECTION",
+                    "description": "Header PARAM_REFLECTION manquant. Risque de PARAM_REFLECTION non impl\u00e9ment\u00e9. (-10 pts)"
+                }
+            ],
+            "api_discovery": [
+                {
+                    "endpoint": "/api/v1/users",
+                    "status": 200,
+                    "description": "Found (200 OK)"
+                },
+                {
+                    "endpoint": "/api/v2/config",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/api/v3/auth",
+                    "status": 200,
+                    "description": "Found (200 OK)"
+                },
+                {
+                    "endpoint": "/v1/secret",
+                    "status": 200,
+                    "description": "Found (200 OK)"
+                },
+                {
+                    "endpoint": "/v2/admin",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/v1/debug",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/test/data",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/staging/db",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/temp/files",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/logs/access",
+                    "status": 200,
+                    "description": "Found (200 OK)"
+                },
+                {
+                    "endpoint": "/admin/settings",
+                    "status": 200,
+                    "description": "Found (200 OK)"
+                },
+                {
+                    "endpoint": "/panel/login",
+                    "status": 200,
+                    "description": "Found (200 OK)"
+                },
+                {
+                    "endpoint": "/web.config",
+                    "status": 403,
+                    "description": "Protected/Client Error (403)"
+                },
+                {
+                    "endpoint": "/.htaccess",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/crossdomain.xml",
+                    "status": 200,
+                    "description": "Found (200 OK)"
+                },
+                {
+                    "endpoint": "/api/status",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/health",
+                    "status": 200,
+                    "description": "Found (200 OK)"
+                },
+                {
+                    "endpoint": "/metrics",
+                    "status": 200,
+                    "description": "Found (200 OK)"
+                },
+                {
+                    "endpoint": "/info",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/version",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/public/users",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/client/v1",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/portal/data",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/docs",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/robots.txt",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/sitemap.xml",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/assets/js/main.js",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                }
+            ],
+            "injection_detected": false,
+            "reflection_detected": false
+        },
+        {
+            "target_url": "https://api.doctolib.fr",
+            "final_score": 5,
+            "header_findings": [
+                {
+                    "severity": "CRITICAL",
+                    "type": "HEADER_MISSING",
+                    "header": "Strict-Transport-Security",
+                    "description": "Header Strict-Transport-Security manquant. Risque de Strict-Transport-Security non impl\u00e9ment\u00e9. (-20 pts)"
+                },
+                {
+                    "severity": "CRITICAL",
+                    "type": "HEADER_MISSING",
+                    "header": "Content-Security-Policy",
+                    "description": "Header Content-Security-Policy manquant. Risque de Content-Security-Policy non impl\u00e9ment\u00e9. (-20 pts)"
+                },
+                {
+                    "severity": "HIGH",
+                    "type": "HEADER_MISSING",
+                    "header": "ENDPOINT_EXPOSED",
+                    "description": "Header ENDPOINT_EXPOSED manquant. Risque de ENDPOINT_EXPOSED non impl\u00e9ment\u00e9. (-15 pts)"
+                },
+                {
+                    "severity": "CRITICAL",
+                    "type": "HEADER_MISSING",
+                    "header": "INJECTION_VULNERABLE",
+                    "description": "Header INJECTION_VULNERABLE manquant. Risque de INJECTION_VULNERABLE non impl\u00e9ment\u00e9. (-30 pts)"
+                },
+                {
+                    "severity": "HIGH",
+                    "type": "HEADER_MISSING",
+                    "header": "PARAM_REFLECTION",
+                    "description": "Header PARAM_REFLECTION manquant. Risque de PARAM_REFLECTION non impl\u00e9ment\u00e9. (-10 pts)"
+                }
+            ],
+            "api_discovery": [
+                {
+                    "endpoint": "/api/v1/users",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/api/v2/config",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/api/v3/auth",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/v1/secret",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/v2/admin",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/v1/debug",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/test/data",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/staging/db",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/temp/files",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/logs/access",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/admin/settings",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/panel/login",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/web.config",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/.htaccess",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/crossdomain.xml",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/api/status",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/health",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/metrics",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/info",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/version",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/public/users",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/client/v1",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/portal/data",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/docs",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/robots.txt",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/sitemap.xml",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/assets/js/main.js",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                }
+            ],
+            "injection_detected": false,
+            "reflection_detected": false
+        },
+        {
+            "target_url": "https://www.doctolib.fr",
+            "final_score": 5,
+            "header_findings": [
+                {
+                    "severity": "CRITICAL",
+                    "type": "HEADER_MISSING",
+                    "header": "Strict-Transport-Security",
+                    "description": "Header Strict-Transport-Security manquant. Risque de Strict-Transport-Security non impl\u00e9ment\u00e9. (-20 pts)"
+                },
+                {
+                    "severity": "CRITICAL",
+                    "type": "HEADER_MISSING",
+                    "header": "Content-Security-Policy",
+                    "description": "Header Content-Security-Policy manquant. Risque de Content-Security-Policy non impl\u00e9ment\u00e9. (-20 pts)"
+                },
+                {
+                    "severity": "HIGH",
+                    "type": "HEADER_MISSING",
+                    "header": "ENDPOINT_EXPOSED",
+                    "description": "Header ENDPOINT_EXPOSED manquant. Risque de ENDPOINT_EXPOSED non impl\u00e9ment\u00e9. (-15 pts)"
+                },
+                {
+                    "severity": "CRITICAL",
+                    "type": "HEADER_MISSING",
+                    "header": "INJECTION_VULNERABLE",
+                    "description": "Header INJECTION_VULNERABLE manquant. Risque de INJECTION_VULNERABLE non impl\u00e9ment\u00e9. (-30 pts)"
+                },
+                {
+                    "severity": "HIGH",
+                    "type": "HEADER_MISSING",
+                    "header": "PARAM_REFLECTION",
+                    "description": "Header PARAM_REFLECTION manquant. Risque de PARAM_REFLECTION non impl\u00e9ment\u00e9. (-10 pts)"
+                }
+            ],
+            "api_discovery": [
+                {
+                    "endpoint": "/api/v1/users",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/api/v2/config",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/api/v3/auth",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/v1/secret",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/v2/admin",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/v1/debug",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/test/data",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/staging/db",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/temp/files",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/logs/access",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/admin/settings",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/panel/login",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/web.config",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/.htaccess",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/crossdomain.xml",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/api/status",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/health",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/metrics",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/info",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/version",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/public/users",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/client/v1",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/portal/data",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/docs",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/robots.txt",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/sitemap.xml",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                },
+                {
+                    "endpoint": "/assets/js/main.js",
+                    "status": 429,
+                    "description": "Protected/Client Error (429)"
+                }
+            ],
+            "injection_detected": false,
+            "reflection_detected": false
+        }
+    ]
+}
