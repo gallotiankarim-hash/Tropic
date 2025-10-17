@@ -369,7 +369,7 @@ def main():
     st.markdown("---")
 
     # --- INPUT DOMAIN ---
-    target_domain = st.text_input("Domaine Cible (Ex: example.com)", value="sypahwellness.com")
+    target_domain = st.text_input("Domaine Cible (Ex: example.com)", value="votrecible.com")
     st.markdown("---")
 
     # --- SÉLECTION DES MODULES ---
