@@ -78,7 +78,7 @@ Suivez ces étapes pour lancer TROPIC dans votre environnement :
 
 1.  **Exécuter l'application :**
     ```bash
-    python app.py
+    streamlit run app.py
     ```
 2.  **Accéder à l'interface :**
     Ouvrez votre navigateur et naviguez vers l'URL affichée par Streamlit (généralement `http://localhost:8501` ou l'adresse fournie par votre Code Space).
