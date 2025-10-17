@@ -10,7 +10,10 @@ import subprocess
 import time
 
 # 🔥 Importation du module de console séparé (doit être dans poc_console.py) 🔥
-from poc_console import render_poc_console 
+# On doit importer le module ici pour pouvoir le référencer dans la fonction main()
+# NOTE : On importe seulement poc_console pour l'usage dans la fonction.
+# from poc_console import render_poc_console  # On le met dans le try/except plus bas pour éviter l'erreur d'import au démarrage.
+
 
 # Importation des moteurs d'analyse.
 try:
@@ -484,85 +487,91 @@ def main():
                 status.update(label=f"✅ Commande Post-Scan terminée", state="complete", expanded=False)
 
     
-    # ============================
-    # 5. CONSOLE PoC (external)
-    # ============================
-    st.markdown("---")
+    # =======================================================
+    # 5. CONSOLE PoC (external) - AVEC ESPACEMENT CORRIGÉ
+    # =======================================================
+    
+    # Ajout des colonnes pour l'espacement: 1 (gauche), 3 (contenu), 1 (droite)
+    col_spacer_left, col_content, col_spacer_right = st.columns([1, 3, 1])
 
-    # --- Prépare les clefs session_state dédiées à la console PoC pour éviter collisions ---
-    if 'poc_shell_cmd_history_list' not in st.session_state:
-        st.session_state['poc_shell_cmd_history_list'] = []
-    if 'poc_current_shell_command_input' not in st.session_state:
-        st.session_state['poc_current_shell_command_input'] = ""
-    if 'poc_last_status' not in st.session_state:
-        st.session_state['poc_last_status'] = None
-    if 'poc_last_time' not in st.session_state:
-        st.session_state['poc_last_time'] = None
-    if 'poc_max_history' not in st.session_state:
-        st.session_state['poc_max_history'] = 500  # limite raisonnable pour la perf
+    # Tout le contenu du bloc original va dans la colonne centrale
+    with col_content:
+        st.markdown("---")
 
-    # --- Import et appel de la console PoC externe ---
-    try:
-        from poc_console import render_poc_console
-    except Exception as e:
-        st.error(f"Impossible de charger poc_console.py : {e}")
-        st.info(
-            "La console PoC est indisponible. "
-            "Vérifiez que poc_console.py est dans le même dossier et qu'elle expose render_poc_console(target, user_config)."
-        )
-    else:
+        # --- Prépare les clefs session_state dédiées à la console PoC pour éviter collisions ---
+        if 'poc_shell_cmd_history_list' not in st.session_state:
+            st.session_state['poc_shell_cmd_history_list'] = []
+        if 'poc_current_shell_command_input' not in st.session_state:
+            st.session_state['poc_current_shell_command_input'] = ""
+        if 'poc_last_status' not in st.session_state:
+            st.session_state['poc_last_status'] = None
+        if 'poc_last_time' not in st.session_state:
+            st.session_state['poc_last_time'] = None
+        if 'poc_max_history' not in st.session_state:
+            st.session_state['poc_max_history'] = 500  # limite raisonnable pour la perf
+
+        # --- Import et appel de la console PoC externe ---
         try:
-            # render_poc_console doit utiliser ses propres clefs st.session_state (préfixées 'poc_')
-            render_poc_console(target_domain, user_config)
+            from poc_console import render_poc_console
         except Exception as e:
-            st.error(f"Erreur lors de l'exécution de la console PoC : {e}")
+            st.error(f"Impossible de charger poc_console.py : {e}")
+            st.info(
+                "La console PoC est indisponible. "
+                "Vérifiez que poc_console.py est dans le même dossier et qu'elle expose render_poc_console(target, user_config)."
+            )
+        else:
             try:
-                import traceback
-                tb = traceback.format_exc()
-                st.text("Traceback (debug):")
-                st.text(tb)
-            except Exception:
-                pass
+                # render_poc_console doit utiliser ses propres clefs st.session_state (préfixées 'poc_')
+                render_poc_console(target_domain, user_config)
+            except Exception as e:
+                st.error(f"Erreur lors de l'exécution de la console PoC : {e}")
+                try:
+                    import traceback
+                    tb = traceback.format_exc()
+                    st.text("Traceback (debug):")
+                    st.text(tb)
+                except Exception:
+                    pass
 
-    # --- Fin de la console PoC ---
-    st.markdown("---")
+        # --- Fin de la console PoC ---
+        st.markdown("---")
 
         
         # Section de Documentation Éthique et Méthodologie
-        st.markdown("---")
-        
-        with st.expander("Méthodologie TROPIC : Détails du Score de Sécurité et Éthique"):
-            st.markdown("""
-                L'évaluation de TROPIC repose sur une méthodologie à deux piliers pour garantir la pertinence éthique :
-                
-                ### 1. Score des Headers (Max 100 points)
-                Le score initial est de 100 points. Chaque en-tête manquant ou mal configuré entraîne une déduction immédiate.
-                
-                | En-tête / Problème | Sévérité | Pénalité | Explication Éthique |
-                | :--- | :--- | :--- | :--- |
-                | **Strict-Transport-Security (HSTS)** | CRITICAL | -20 pts | Défaut de forcer HTTPS (risque de session hijacking). |
-                | **Content-Security-Policy (CSP)** | CRITICAL | -20 pts | Permet les injections de code (XSS), non conforme aux bonnes pratiques modernes. |
-                | **X-Frame-Options / X-Content-Type-Options** | HIGH | -10 pts | Failles contre le clickjacking et l'exécution de contenu non désiré. |
-                | **Divulgation Serveur / X-Powered-By** | MEDIUM | -5 pts | Fournit à l'attaquant des informations faciles pour cibler les vulnérabilités. |
-                
-                ### 2. Ajustement par Exposition d'API
-                Le score des Headers est ensuite ajusté par le nombre d'endpoints critiques non protégés (réponse **200 OK**) et par la détection d'injection active.
-                
-                * **Pénalité par Endpoint (ENDPOINT_EXPOSED) :** -{} points.
-                * **Pénalité par Injection (INJECTION_VULNERABLE) :** -{} points.
-                * **Pénalité par Réflexion (PARAM_REFLECTION) :** -{} points.
-                
-                Le score final est le score ajusté (minimum 0).
-            """.format(SECURITY_SCORE_WEIGHTS.get('ENDPOINT_EXPOSED', 15), SECURITY_SCORE_WEIGHTS.get('INJECTION_VULNERABLE', 30), SECURITY_SCORE_WEIGHTS.get('PARAM_REFLECTION', 10))) 
+    st.markdown("---")
+    
+    with st.expander("Méthodologie TROPIC : Détails du Score de Sécurité et Éthique"):
+        st.markdown("""
+            L'évaluation de TROPIC repose sur une méthodologie à deux piliers pour garantir la pertinence éthique :
             
-            st.info("L'objectif de TROPIC est de fournir une évaluation claire et exploitable pour permettre la **remédiation** immédiate des failles de sécurité de base.")
-
-
-        # Affichage du Log Final
-        with st.expander("Voir les Logs d'Exécution Bruts (Multi-Module et Post-Scan)"):
-            st.code(''.join(all_logs), language='bash')
+            ### 1. Score des Headers (Max 100 points)
+            Le score initial est de 100 points. Chaque en-tête manquant ou mal configuré entraîne une déduction immédiate.
+            
+            | En-tête / Problème | Sévérité | Pénalité | Explication Éthique |
+            | :--- | :--- | :--- | :--- |
+            | **Strict-Transport-Security (HSTS)** | CRITICAL | -20 pts | Défaut de forcer HTTPS (risque de session hijacking). |
+            | **Content-Security-Policy (CSP)** | CRITICAL | -20 pts | Permet les injections de code (XSS), non conforme aux bonnes pratiques modernes. |
+            | **X-Frame-Options / X-Content-Type-Options** | HIGH | -10 pts | Failles contre le clickjacking et l'exécution de contenu non désiré. |
+            | **Divulgation Serveur / X-Powered-By** | MEDIUM | -5 pts | Fournit à l'attaquant des informations faciles pour cibler les vulnérabilités. |
+            
+            ### 2. Ajustement par Exposition d'API
+            Le score des Headers est ensuite ajusté par le nombre d'endpoints critiques non protégés (réponse **200 OK**) et par la détection d'injection active.
+            
+            * **Pénalité par Endpoint (ENDPOINT_EXPOSED) :** -{} points.
+            * **Pénalité par Injection (INJECTION_VULNERABLE) :** -{} points.
+            * **Pénalité par Réflexion (PARAM_REFLECTION) :** -{} points.
+            
+            Le score final est le score ajusté (minimum 0).
+        """.format(SECURITY_SCORE_WEIGHTS.get('ENDPOINT_EXPOSED', 15), SECURITY_SCORE_WEIGHTS.get('INJECTION_VULNERABLE', 30), SECURITY_SCORE_WEIGHTS.get('PARAM_REFLECTION', 10))) 
         
-        st.balloons()
+        st.info("L'objectif de TROPIC est de fournir une évaluation claire et exploitable pour permettre la **remédiation** immédiate des failles de sécurité de base.")
+
+
+    # Affichage du Log Final
+    with st.expander("Voir les Logs d'Exécution Bruts (Multi-Module et Post-Scan)"):
+        st.code(''.join(all_logs), language='bash')
+    
+    st.balloons()
 
 # --- BLOC DE LANCEMENT SIMPLIFIÉ ---
 if __name__ == "__main__":
