@@ -1,13 +1,17 @@
 # .streamlit/config.toml
 
 [theme]
-base="dark" 
-backgroundColor="#0d1117"
-secondaryBackgroundColor="#161b22"
-primaryColor="#00c400"
-textColor="#a9ffb4"
-font="monospace"
+# Couleur principale du thème néon (Bleu Électrique)
+primaryColor = "#00FFFF"
 
-[server]
-runOnSave = true
-port = 8501 
+# Couleur de fond foncée pour un look "hacker"
+backgroundColor = "#0E1117" 
+
+# Couleur des éléments secondaires (barres, bordures)
+secondaryBackgroundColor = "#262A31"
+
+# Couleur du texte
+textColor = "#FAFAFA"
+
+# Utiliser une police de style terminal
+font = "monospace" 
