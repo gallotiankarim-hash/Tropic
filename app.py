@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE TROPIC PRO - STABLE V2.5)
+# app.py (VERSION DÉFINITIVE ET FONCTIONNELLE V2.5)
 import streamlit as st
 import pandas as pd
 import json
@@ -7,7 +7,11 @@ import sys
 from io import StringIO
 from datetime import datetime
 import subprocess
-import time # Ajout de time pour la robustesse
+
+# --- IDENTIFIANTS DE SÉCURITÉ PAR DÉFAUT ---
+# UTILISEZ ST.SECRETS EN PRODUCTION !
+PASSWORD_CORRECT = "TROPIC_SECURE_PASS" 
+USERNAME_CORRECT = "Karim"
 
 # Importation des moteurs d'analyse.
 try:
@@ -15,7 +19,6 @@ try:
     from Api_scan import run_api_scan, SECURITY_SCORE_WEIGHTS
     from Exploit_Adv import run_vulnerability_scan, simulate_poc_execution 
 except ImportError as e:
-    # Initialise les fonctions de substitution pour éviter un crash si un module est manquant
     def placeholder_func(*args, **kwargs):
         raise ImportError(f"FATAL ERROR: Security module missing or misnamed. Details: {e}")
     run_recon = run_api_scan = run_vulnerability_scan = simulate_poc_execution = placeholder_func
@@ -23,7 +26,43 @@ except ImportError as e:
 
 
 # ===============================================================================
-#                             FONCTIONS D'EXECUTION / LOGS
+#                             FONCTIONS D'AUTHENTIFICATION
+# ===============================================================================
+
+def check_password():
+    """Page de connexion pour l'accès au panneau TROPIC."""
+    
+    def password_entered():
+        """Vérifie si le mot de passe est correct."""
+        if (st.session_state.get("username_input") == USERNAME_CORRECT and
+            st.session_state.get("password_input") == PASSWORD_CORRECT):
+            st.session_state["password_correct"] = True
+            # Nettoie les entrées pour des raisons de sécurité
+            del st.session_state["password_input"] 
+            del st.session_state["username_input"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if st.session_state.get("password_correct", False):
+        return True
+        
+    # --- Formulaire de Connexion ---
+    st.title("🔒 TROPIC Login")
+    st.markdown("---")
+    
+    with st.form("login_form"):
+        st.text_input("Username", key="username_input")
+        st.text_input("Password", type="password", key="password_input")
+        st.form_submit_button("Log In", on_click=password_entered)
+
+    if st.session_state.get("password_correct") == False:
+        st.error("❌ Invalid Username or Password. Please try again.")
+
+    return False # Retourne False tant que la connexion n'est pas réussie
+
+
+# ===============================================================================
+#                             LOGIQUE D'EXÉCUTION / LOGS (Fonctions inchangées)
 # ===============================================================================
 
 def execute_and_capture(func, target, config=None):
@@ -65,25 +104,17 @@ def execute_post_scan_command(target_domain, command, output_lines):
     except Exception as e:
         output_lines.append(f"[POST-SCAN] Statut: ERREUR CRITIQUE: {str(e)}")
 
+
 # ===============================================================================
-#                           CONFIGURATION DES MODULES
+#                           FONCTIONS DE CONFIGURATION ET AFFICHAGE
 # ===============================================================================
 
 def load_user_config():
     """Charge les options de configuration depuis la sidebar."""
     st.sidebar.header("⚙️ Configuration des Modules")
-    
-    # --- Définition des Objectifs/Scope ---
     st.sidebar.subheader("🎯 Objectifs du Pentest")
-    pentest_goal = st.sidebar.text_area(
-        "Scope / But Principal du Test",
-        value="Vérifier la configuration de sécurité de l'infrastructure web (Headers et exposition API).",
-        height=100,
-        key="pentest_goal_input",
-        help="Définissez clairement ce que le test doit découvrir ou valider."
-    )
+    pentest_goal = st.sidebar.text_area("Scope / But Principal du Test", value="Vérifier la configuration de sécurité de l'infrastructure web (Headers et exposition API).", height=100, key="pentest_goal_input", help="Définissez clairement ce que le test doit découvrir ou valider.")
     st.sidebar.markdown("---")
-    
     st.sidebar.subheader("Général")
     timeout = st.sidebar.slider("Délai d'attente (Timeout) en secondes", min_value=3, max_value=20, value=7, step=1, help="Durée maximale d'attente pour une réponse HTTP/S pour Recon et API Scan.")
     st.sidebar.markdown("---")
@@ -103,11 +134,8 @@ def load_user_config():
         "pentest_goal": pentest_goal
     }
 
-# ===============================================================================
-#                             FONCTIONS D'AFFICHAGE DU RAPPORT
-# ===============================================================================
-
 def display_recon_report(target):
+    # ... (fonction inchangée)
     st.subheader("📊 Module 1 : Résultat de la Reconnaissance")
     active_file = os.path.join("output", f"{target}_active_subdomains.txt")
     if os.path.exists(active_file):
@@ -120,6 +148,7 @@ def display_recon_report(target):
         st.warning("Aucun fichier de cibles actives trouvé. Le scan a pu échouer.")
 
 def display_api_scan_report(target):
+    # ... (fonction inchangée)
     st.subheader("🛡️ Module 2 : Analyse Sécurité API/Headers")
     report_file = os.path.join("output", f"{target}_api_report.json")
     if not os.path.exists(report_file):
@@ -169,6 +198,7 @@ def display_api_scan_report(target):
         st.info("Aucun endpoint critique n'a répondu 200 OK lors du fuzzing.")
 
 def display_vuln_scan_report(target):
+    # ... (fonction inchangée)
     st.subheader("🚨 Module 3 : Rapport de Vulnérabilités Avancé")
     report_file = os.path.join("output", f"{target}_vulnerability_report.json")
     if not os.path.exists(report_file):
@@ -190,43 +220,33 @@ def display_vuln_scan_report(target):
     else:
         st.info("Aucune vulnérabilité n'a été trouvée.")
 
-# Fonction pour l'interface du Shell Simulé (Console de Diagnostic Actif)
 def display_active_diagnostic_console(target):
+    # ... (fonction corrigée pour utiliser st.form)
     st.header("💻 Console de Diagnostic Actif (PoC)")
     st.warning("⚠️ ATTENTION : La **Console de Diagnostic Actif** envoie des charges utiles spécifiques. N'utilisez cette console que sur des cibles pour lesquelles vous avez un consentement **écrit**.")
     
-    # Utilisation de st.session_state pour maintenir l'état du shell
     if 'shell_cmd_history' not in st.session_state:
         st.session_state.shell_cmd_history = ""
     
-    # 1. Début du Formulaire pour capturer l'action de manière atomique
     with st.form(key='poc_shell_form'):
         
-        # Champ de saisie pour la commande
         command = st.text_input(
             f"tropic@{target}:~# ", 
             key="shell_cmd_input", 
             label_visibility="collapsed"
         )
         
-        # Bouton d'exécution (doit être DANS le formulaire)
         execute_button = st.form_submit_button("Exécuter Diagnostic", type="secondary")
 
-    # 2. Logique d'exécution (Elle s'exécute après la soumission du formulaire)
     if execute_button:
         
         if command:
             
-            # Exécution du PoC (via le Module 3)
             new_output, status_code = simulate_poc_execution(target, command) 
             
-            # Construit le nouveau contenu pour l'affichage (ajoute la commande et la sortie)
             st.session_state.shell_cmd_history += f"tropic@{target}:~# {command}\n"
             st.session_state.shell_cmd_history += f"{new_output}\n\n"
             
-            # Note: Le champ de saisie est vidé automatiquement par le formulaire.
-            
-    # 3. Affichage de la Console
     st.markdown("---")
     st.code(
         st.session_state.shell_cmd_history 
@@ -235,27 +255,19 @@ def display_active_diagnostic_console(target):
         language='bash'
     )
 
-
 # ===============================================================================
 #                             INTERFACE PRINCIPALE
 # ===============================================================================
 
-def main():
+def display_tropic_app():
+    """Affiche l'interface principale de l'application (après connexion)."""
+    
     st.set_page_config(
         page_title="TROPIC Scanner",
         layout="wide"
     )
-    
-    # Vérification des imports de modules (pour afficher une erreur critique si besoin)
-    try:
-        # Tente d'accéder aux fonctions pour s'assurer qu'elles sont là
-        _ = run_api_scan 
-    except ImportError as e:
-        st.error(f"ÉCHEC CRITIQUE: Impossible d'importer les modules de sécurité. Veuillez vérifier que 'Recon.py', 'Api_scan.py', et 'Exploit_Adv.py' sont présents et que les dépendances sont installées.")
-        st.code(str(e))
-        return # Arrête l'exécution de main() si les imports échouent
 
-    # 1. INJECTION DU THÈME CYBER/MATRIX (CSS STATIQUE)
+    # ... (Injection CSS et Titres - inchangé) ...
     st.markdown(
         """
         <style>
@@ -317,10 +329,8 @@ def main():
     
     st.title("TROPIC :: Multi-Module Security Analyzer 🌴")
     
-    # Intégration de la mention "By Karim"
     st.markdown("Développé et maintenu par **Karim**. | Outil de sécurité complet en 3 phases, incluant un exécuteur de commandes post-scan.")
 
-    # AVERTISSEMENT RED FLAG MASSIF
     st.markdown("""
         <div class="red-flag-box">
             <p style="color: #ff0000; font-weight: bold; font-size: 1.5em; text-align: center;">
@@ -346,7 +356,7 @@ def main():
     target_domain = st.text_input("Domaine Cible (Ex: example.com)", value="sypahwellness.com")
     st.markdown("---")
 
-    # --- SÉLECTION DES MODULES ---
+    # --- SÉLECTION DES MODULES ET LOGIQUE D'EXÉCUTION (inchangée) ---
     st.sidebar.header("Options d'Exécution")
     run_all = st.sidebar.checkbox("Exécuter les 3 Modules en Séquence", value=True)
     
@@ -361,7 +371,6 @@ def main():
         if run_sequence:
             run_recon_module = run_api_module = run_vuln_module = True
 
-    # --- LOGIQUE D'EXÉCUTION ---
     if run_recon_module or run_api_module or run_vuln_module:
         
         if not target_domain:
@@ -372,16 +381,15 @@ def main():
         placeholder = st.empty()
         all_logs = []
         
-        # 1. MODULE DE RECONNAISSANCE
+        # Exécution des modules
         if run_recon_module:
-            with placeholder.status(f"Module 1: Exécution de la Reconnaissance sur **{target_domain}**... (1500+ actions)", expanded=True) as status:
+            with placeholder.status(f"Module 1: Exécution de la Reconnaissance sur **{target_domain}**...", expanded=True) as status:
                 log, time = execute_and_capture(run_recon, target_domain, user_config) 
                 all_logs.append(f"\n--- LOGS MODULE 1 ({time:.2f}s) ---\n" + log)
                 status.update(label=f"✅ Module 1 (Recon) terminé en {time:.2f}s", state="complete", expanded=False)
             display_recon_report(target_domain)
             st.markdown("---")
 
-        # 2. MODULE API SCAN
         if run_api_module:
             if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
                 st.warning("⏩ Skipping Module 2 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
@@ -393,7 +401,6 @@ def main():
                 display_api_scan_report(target_domain)
                 st.markdown("---")
 
-        # 3. MODULE VULN SCAN (Exploit_Adv.py)
         if run_vuln_module:
             if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
                 st.warning("⏩ Skipping Module 3 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
@@ -405,8 +412,7 @@ def main():
                 display_vuln_scan_report(target_domain)
                 st.markdown("---")
         
-        
-        # 4. POST-SCAN EXECUTOR
+        # POST-SCAN EXECUTOR
         if user_config['post_scan_command']:
              with placeholder.status(f"🌐 Exécution de la commande Post-Scan...", expanded=True) as status:
                 output_lines = []
@@ -415,7 +421,7 @@ def main():
                 status.update(label=f"✅ Commande Post-Scan terminée", state="complete", expanded=False)
 
         
-        # 5. CONSOLE DE DIAGNOSTIC ACTIF
+        # CONSOLE DE DIAGNOSTIC ACTIF
         st.markdown("---")
         display_active_diagnostic_console(target_domain)
         
@@ -456,6 +462,17 @@ def main():
         st.balloons()
 
 
+def main():
+    """Fonction principale gérant la logique de connexion et l'exécution de l'application."""
+
+    # 1. TENTE DE SE CONNECTER
+    if not check_password():
+        return # Arrête l'exécution si le mot de passe est incorrect
+        
+    # 2. Si connecté, affiche l'application
+    display_tropic_app()
+
+
 def is_running_streamlit():
     """Vérifie si Streamlit est déjà en cours d'exécution."""
     try:
@@ -466,26 +483,24 @@ def is_running_streamlit():
 
 if __name__ == "__main__":
     
-    # 1. Installer les dépendances (nécessite requirements.txt)
+    # 1. LOGIQUE D'INSTALLATION
     print("Initialisation des dépendances...")
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
     except Exception:
-        # Solution de secours si requirements.txt ou pip échouent
         try:
              subprocess.check_call([sys.executable, "-m", "pip", "install", "streamlit", "pandas", "requests"])
         except Exception as e:
             print(f"FATAL ERROR: Failed to install minimum dependencies. Details: {e}")
             sys.exit(1)
         
-    # 2. Lancement Corrigé : Lance Streamlit UNIQUEMENT si nous ne sommes pas déjà dans un thread Streamlit
+    # 2. AUTO-LANCEMENT CORRIGÉ
     if not is_running_streamlit():
         print("\nAttempting to launch Streamlit application via python -m streamlit...")
         try:
-            # Lance Streamlit en utilisant l'exécutable Python (méthode la plus fiable)
             subprocess.run(
                 [
-                    sys.executable, "-m", "streamlit", "run", "app.py",
+                    sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__),
                     "--server.port", "8501", 
                     "--server.address", "0.0.0.0"
                 ],
@@ -495,5 +510,5 @@ if __name__ == "__main__":
             print(f"CRITICAL ERROR: Streamlit execution failed. The command 'streamlit run' could not be executed.")
             sys.exit(1)
     else:
-        # CORRECTION FINALE : Si nous sommes déjà dans un thread Streamlit (lors du rechargement), appeler main()
+        # L'exécution est déléguée à Streamlit (via main())
         main()
