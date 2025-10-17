@@ -60,6 +60,8 @@ def render_poc_console(target_domain: str, user_config: dict):
         
         # --- Exécution sécurisée de la commande ---
         try:
+            # NOTE: Nous utilisons target_domain dans le message d'historique pour rappel,
+            # mais la commande shell s'exécute localement à moins que 'cmd' n'inclue SSH/RCE.
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
             output = result.stdout.strip()
             error = result.stderr.strip()
@@ -79,7 +81,8 @@ def render_poc_console(target_domain: str, user_config: dict):
         st.session_state['poc_current_shell_command_input'] = ""
 
         # --- Rafraîchissement du code area ---
-        st.experimental_rerun()
+        # 🟢 CORRECTION : Remplacement de st.experimental_rerun() par st.rerun()
+        st.rerun() 
 
     # --- Affichage du dernier statut ---
     if st.session_state['poc_last_status']:
