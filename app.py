@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE TROPIC PRO - CONSOLE DE DIAGNOSTIC ACTIF + AUTO-LAUNCH)
+# app.py (VERSION FINALE TROPIC PRO - CONSOLE DE DIAGNOSTIC ACTIF + AUTO-LAUNCH CORRIGÉ)
 import streamlit as st
 import pandas as pd
 import json
@@ -15,10 +15,13 @@ try:
     # Le module 3 est Exploit_Adv.py
     from Exploit_Adv import run_vulnerability_scan, simulate_poc_execution 
 except ImportError as e:
-    # Si l'importation échoue ici, nous n'affichons qu'un message d'erreur simple
-    # car les fonctions d'erreur de Streamlit ne sont pas encore prêtes.
-    print(f"FATAL ERROR: Failed to import security modules. Ensure Recon.py, Api_scan.py, and Exploit_Adv.py exist. Details: {e}")
-    sys.exit(1)
+    # Affiche l'erreur si les modules ne sont pas trouvés, mais laisse le script se lancer pour le mode auto-launch
+    # La fonction main gérera l'affichage de l'erreur Streamlit si l'import échoue.
+    def placeholder_func(*args, **kwargs):
+        raise ImportError(f"FATAL ERROR: Security module missing or misnamed. Details: {e}")
+    run_recon = run_api_scan = run_vulnerability_scan = simulate_poc_execution = placeholder_func
+    SECURITY_SCORE_WEIGHTS = {'ENDPOINT_EXPOSED': 15, 'INJECTION_VULNERABLE': 30, 'PARAM_REFLECTION': 10}
+
 
 # ===============================================================================
 #                             FONCTIONS D'EXECUTION / LOGS
@@ -219,7 +222,8 @@ def display_active_diagnostic_console(target):
             st.session_state.last_command = command 
             
             # Exécution du PoC (via le Module 3)
-            new_output, status_code = simulate_poc_execution(target, command)
+            # Utilisation de la fonction importée, qui contient la logique non simulée
+            new_output, status_code = simulate_poc_execution(target, command) 
             
             # Construit le nouveau contenu pour l'affichage (ajoute la commande et la sortie)
             st.session_state.shell_cmd_history += f"tropic@{target}:~# {command}\n"
@@ -302,7 +306,7 @@ def main():
         unsafe_allow_html=True
     )
     
-    st.title("TROPIC 🌴")
+    st.title("TROPIC :: Multi-Module Security Analyzer 🌴")
     
     # Intégration de la mention "By Karim"
     st.markdown("Développé et maintenu par **Karim**. | Outil de sécurité complet en 3 phases, incluant un exécuteur de commandes post-scan.")
@@ -443,29 +447,45 @@ def main():
         st.balloons()
 
 
+def is_running_streamlit():
+    """Vérifie si Streamlit est déjà en cours d'exécution."""
+    try:
+        from streamlit.web.server import Server
+        return Server.get_current() is not None
+    except:
+        return False
+
 if __name__ == "__main__":
-    # --- SOLUTION DE L'ERREUR 'Command not found' ---
     
-    # 1. Installe les dépendances via pip
+    # 1. Installer les dépendances (nécessite requirements.txt)
+    print("Initialisation des dépendances...")
     try:
+        # Tente d'abord l'installation propre avec requirements.txt
         subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-    except Exception as e:
-        # Tente l'installation sans requirements.txt s'il échoue (juste au cas où)
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "streamlit", "pandas", "requests"])
-    
-    # 2. Lance Streamlit en utilisant l'exécutable Python (méthode la plus fiable)
-    print("\nAttempting to launch Streamlit application via python -m streamlit...")
-    
-    try:
-        subprocess.run(
-            [
-                sys.executable, "-m", "streamlit", "run", "app.py",
-                "--server.port", "8501", 
-                "--server.address", "0.0.0.0"
-            ],
-            check=True
-        )
-    except subprocess.CalledProcessError as e:
-        print(f"CRITICAL ERROR: Streamlit execution failed. The command 'streamlit run' could not be executed.")
-        print("Please check if the Code Space environment has sufficient permissions or dependencies.")
-        sys.exit(1)
+    except Exception:
+        # Solution de secours si requirements.txt ou pip échouent
+        try:
+             subprocess.check_call([sys.executable, "-m", "pip", "install", "streamlit", "pandas", "requests"])
+        except Exception as e:
+            print(f"FATAL ERROR: Failed to install minimum dependencies. Details: {e}")
+            sys.exit(1)
+        
+    # 2. CORRECTION FINALE : Lance Streamlit UNIQUEMENT si nous ne sommes pas déjà dans un thread Streamlit
+    if not is_running_streamlit():
+        print("\nAttempting to launch Streamlit application via python -m streamlit...")
+        try:
+            # Lance Streamlit en utilisant l'exécutable Python (méthode la plus fiable)
+            subprocess.run(
+                [
+                    sys.executable, "-m", "streamlit", "run", "app.py",
+                    "--server.port", "8501", 
+                    "--server.address", "0.0.0.0"
+                ],
+                check=True
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"CRITICAL ERROR: Streamlit execution failed. The command 'streamlit run' could not be executed.")
+            sys.exit(1)
+    else:
+        # Si nous sommes déjà dans un thread Streamlit (lors du rechargement), appeler main()
+        main()
