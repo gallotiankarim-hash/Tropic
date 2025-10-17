@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE TROPIC PRO - CONSOLE DE DIAGNOSTIC ACTIF)
+# app.py (VERSION FINALE TROPIC PRO - CONSOLE DE DIAGNOSTIC ACTIF + AUTO-LAUNCH CORRIGÉ)
 import streamlit as st
 import pandas as pd
 import json
@@ -12,11 +12,15 @@ import subprocess
 try:
     from Recon import run_recon
     from Api_scan import run_api_scan, SECURITY_SCORE_WEIGHTS
-    # Le module 3 est maintenant Exploit_Adv.py
+    # Le module 3 est Exploit_Adv.py
     from Exploit_Adv import run_vulnerability_scan, simulate_poc_execution 
 except ImportError as e:
-    st.error(f"Erreur d'importation : Assurez-vous que 'Recon.py', 'Api_scan.py', et 'Exploit_Adv.py' sont dans le même répertoire que app.py. ({e})")
-    sys.exit(1)
+    # Si l'importation échoue, nous utilisons des placeholders pour éviter un crash
+    def placeholder_func(*args, **kwargs):
+        raise ImportError(f"FATAL ERROR: Security module missing or misnamed. Details: {e}")
+    run_recon = run_api_scan = run_vulnerability_scan = simulate_poc_execution = placeholder_func
+    SECURITY_SCORE_WEIGHTS = {'ENDPOINT_EXPOSED': 15, 'INJECTION_VULNERABLE': 30, 'PARAM_REFLECTION': 10}
+
 
 # ===============================================================================
 #                             FONCTIONS D'EXECUTION / LOGS
@@ -186,49 +190,51 @@ def display_vuln_scan_report(target):
     else:
         st.info("Aucune vulnérabilité n'a été trouvée.")
 
-# Fonction pour l'interface du Shell Simulé (renommée)
+# Fonction pour l'interface du Shell Simulé (Console de Diagnostic Actif)
 def display_active_diagnostic_console(target):
     st.header("💻 Console de Diagnostic Actif (PoC)")
     st.warning("⚠️ ATTENTION : La **Console de Diagnostic Actif** envoie des charges utiles spécifiques. N'utilisez cette console que sur des cibles pour lesquelles vous avez un consentement **écrit**.")
     
-    if 'poc_output' not in st.session_state:
-        st.session_state.poc_output = ""
+    # Utilisation de st.session_state pour maintenir l'état du shell
     if 'shell_cmd_history' not in st.session_state:
         st.session_state.shell_cmd_history = ""
-    if 'last_command' not in st.session_state:
-        st.session_state.last_command = ""
     
-    # Champ de saisie pour la commande
-    command = st.text_input(
-        f"tropic@{target}:~# ", 
-        key="shell_cmd_input", 
-        label_visibility="collapsed"
-    )
-    
-    # Logique d'exécution
-    col1, col2 = st.columns([1, 4])
-    
-    with col1:
-        execute_button = st.button("Exécuter PoC", type="secondary", use_container_width=True)
+    # 1. Début du Formulaire pour capturer l'action de manière atomique
+    with st.form(key='poc_shell_form'):
+        
+        # Champ de saisie pour la commande
+        command = st.text_input(
+            f"tropic@{target}:~# ", 
+            key="shell_cmd_input", 
+            label_visibility="collapsed"
+        )
+        
+        # Bouton d'exécution (doit être DANS le formulaire)
+        execute_button = st.form_submit_button("Exécuter Diagnostic", type="secondary")
 
-    if execute_button or (command and st.session_state.last_command != command):
+    # 2. Logique d'exécution (Elle s'exécute après la soumission du formulaire)
+    if execute_button:
         
         if command:
-            st.session_state.last_command = command 
             
             # Exécution du PoC (via le Module 3)
-            new_output, status_code = simulate_poc_execution(target, command)
+            new_output, status_code = simulate_poc_execution(target, command) 
             
             # Construit le nouveau contenu pour l'affichage (ajoute la commande et la sortie)
             st.session_state.shell_cmd_history += f"tropic@{target}:~# {command}\n"
             st.session_state.shell_cmd_history += f"{new_output}\n\n"
             
-            # Vide le champ d'entrée après l'exécution pour une nouvelle commande
-            st.session_state.shell_cmd_input = "" 
+            # Laisse le champ de saisie se vider après la soumission du formulaire
             
-    # Affichage de la Console
+    # 3. Affichage de la Console
     st.markdown("---")
-    st.code(st.session_state.shell_cmd_history if st.session_state.shell_cmd_history else "Tapez 'id' ou 'ls' pour tester l'accès (PoC) après avoir lancé un scan.", language='bash')
+    st.code(
+        st.session_state.shell_cmd_history 
+        if st.session_state.shell_cmd_history 
+        else "Tapez 'id' ou 'ls' pour tester l'accès (PoC) après avoir lancé un scan.", 
+        language='bash'
+    )
+
 
 # ===============================================================================
 #                             INTERFACE PRINCIPALE
@@ -441,5 +447,45 @@ def main():
         st.balloons()
 
 
+def is_running_streamlit():
+    """Vérifie si Streamlit est déjà en cours d'exécution."""
+    try:
+        # Import local pour éviter les erreurs avant le lancement Streamlit
+        from streamlit.web.server import Server
+        return Server.get_current() is not None
+    except:
+        return False
+
 if __name__ == "__main__":
-    main()
+    
+    # 1. Installer les dépendances (nécessite requirements.txt)
+    print("Initialisation des dépendances...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+    except Exception:
+        # Solution de secours si requirements.txt ou pip échouent
+        try:
+             subprocess.check_call([sys.executable, "-m", "pip", "install", "streamlit", "pandas", "requests"])
+        except Exception as e:
+            print(f"FATAL ERROR: Failed to install minimum dependencies. Details: {e}")
+            sys.exit(1)
+        
+    # 2. Lancement Corrigé : Lance Streamlit UNIQUEMENT si nous ne sommes pas déjà dans un thread Streamlit
+    if not is_running_streamlit():
+        print("\nAttempting to launch Streamlit application via python -m streamlit...")
+        try:
+            # Lance Streamlit en utilisant l'exécutable Python (méthode la plus fiable)
+            subprocess.run(
+                [
+                    sys.executable, "-m", "streamlit", "run", "app.py",
+                    "--server.port", "8501", 
+                    "--server.address", "0.0.0.0"
+                ],
+                check=True
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"CRITICAL ERROR: Streamlit execution failed. The command 'streamlit run' could not be executed.")
+            sys.exit(1)
+    else:
+        # CORRECTION FINALE : Si nous sommes déjà dans un thread Streamlit (lors du rechargement), appeler main()
+        main()
