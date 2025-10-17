@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE TROPIC PRO - CONSOLE DE DIAGNOSTIC ACTIF + AUTO-LAUNCH CORRIGÉ)
+# app.py (VERSION FINALE TROPIC PRO - STABLE V2.5)
 import streamlit as st
 import pandas as pd
 import json
@@ -7,15 +7,15 @@ import sys
 from io import StringIO
 from datetime import datetime
 import subprocess
+import time # Ajout de time pour la robustesse
 
 # Importation des moteurs d'analyse.
 try:
     from Recon import run_recon
     from Api_scan import run_api_scan, SECURITY_SCORE_WEIGHTS
-    # Le module 3 est Exploit_Adv.py
     from Exploit_Adv import run_vulnerability_scan, simulate_poc_execution 
 except ImportError as e:
-    # Si l'importation échoue, nous utilisons des placeholders pour éviter un crash
+    # Initialise les fonctions de substitution pour éviter un crash si un module est manquant
     def placeholder_func(*args, **kwargs):
         raise ImportError(f"FATAL ERROR: Security module missing or misnamed. Details: {e}")
     run_recon = run_api_scan = run_vulnerability_scan = simulate_poc_execution = placeholder_func
@@ -224,14 +224,14 @@ def display_active_diagnostic_console(target):
             st.session_state.shell_cmd_history += f"tropic@{target}:~# {command}\n"
             st.session_state.shell_cmd_history += f"{new_output}\n\n"
             
-            # Laisse le champ de saisie se vider après la soumission du formulaire
+            # Note: Le champ de saisie est vidé automatiquement par le formulaire.
             
     # 3. Affichage de la Console
     st.markdown("---")
     st.code(
         st.session_state.shell_cmd_history 
         if st.session_state.shell_cmd_history 
-        else "Tapez 'id' ou 'ls' pour tester l'accès (PoC) après avoir lancé un scan.", 
+        else "Tapez 'id' ou 'ls' pour tester le diagnostic après avoir lancé un scan.", 
         language='bash'
     )
 
@@ -245,6 +245,15 @@ def main():
         page_title="TROPIC Scanner",
         layout="wide"
     )
+    
+    # Vérification des imports de modules (pour afficher une erreur critique si besoin)
+    try:
+        # Tente d'accéder aux fonctions pour s'assurer qu'elles sont là
+        _ = run_api_scan 
+    except ImportError as e:
+        st.error(f"ÉCHEC CRITIQUE: Impossible d'importer les modules de sécurité. Veuillez vérifier que 'Recon.py', 'Api_scan.py', et 'Exploit_Adv.py' sont présents et que les dépendances sont installées.")
+        st.code(str(e))
+        return # Arrête l'exécution de main() si les imports échouent
 
     # 1. INJECTION DU THÈME CYBER/MATRIX (CSS STATIQUE)
     st.markdown(
@@ -450,7 +459,6 @@ def main():
 def is_running_streamlit():
     """Vérifie si Streamlit est déjà en cours d'exécution."""
     try:
-        # Import local pour éviter les erreurs avant le lancement Streamlit
         from streamlit.web.server import Server
         return Server.get_current() is not None
     except:
