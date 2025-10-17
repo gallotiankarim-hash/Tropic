@@ -10,10 +10,7 @@ import subprocess
 import time
 
 # 🔥 Importation du module de console séparé (doit être dans poc_console.py) 🔥
-# On doit importer le module ici pour pouvoir le référencer dans la fonction main()
-# NOTE : On importe seulement poc_console pour l'usage dans la fonction.
-# from poc_console import render_poc_console  # On le met dans le try/except plus bas pour éviter l'erreur d'import au démarrage.
-
+# On ne l'importe pas ici pour gérer l'erreur plus bas dans la console PoC
 
 # Importation des moteurs d'analyse.
 try:
@@ -322,6 +319,9 @@ def main():
 
     # --- CHARGEMENT DE LA CONFIGURATION UTILISATEUR ---
     user_config = load_user_config()
+    
+    # ❌ CORRECTION UnboundLocalError: Initialiser all_logs avant tout bloc conditionnel.
+    all_logs = [] 
 
     # --------------------------------------------------------------------------
     # --- PERSISTANCE SESSION_STATE (INITIALISATION CLASSIQUE ET CORRIGÉE) ---
@@ -379,7 +379,8 @@ def main():
 
         os.makedirs("output", exist_ok=True)
         placeholder = st.empty()
-        all_logs = []
+        # all_logs = [] <-- La définition a été déplacée plus haut (Ligne 341) pour correction
+
         
         # 1. MODULE DE RECONNAISSANCE
         if run_recon_module:
@@ -492,9 +493,10 @@ def main():
     # =======================================================
     
     # Ajout des colonnes pour l'espacement: 1 (gauche), 3 (contenu), 1 (droite)
+    # Ceci mettra un espace sur les côtés de la console PoC
     col_spacer_left, col_content, col_spacer_right = st.columns([1, 3, 1])
 
-    # Tout le contenu du bloc original va dans la colonne centrale
+    # Tout le contenu du bloc original va dans la colonne centrale (col_content)
     with col_content:
         st.markdown("---")
 
@@ -537,7 +539,7 @@ def main():
         st.markdown("---")
 
         
-        # Section de Documentation Éthique et Méthodologie
+    # Section de Documentation Éthique et Méthodologie (Indentation rétablie au niveau de main())
     st.markdown("---")
     
     with st.expander("Méthodologie TROPIC : Détails du Score de Sécurité et Éthique"):
@@ -569,6 +571,7 @@ def main():
 
     # Affichage du Log Final
     with st.expander("Voir les Logs d'Exécution Bruts (Multi-Module et Post-Scan)"):
+        # L'utilisation de all_logs est maintenant sécurisée, car elle est initialisée au début de main()
         st.code(''.join(all_logs), language='bash')
     
     st.balloons()
