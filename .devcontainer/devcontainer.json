@@ -2,18 +2,18 @@
     "name": "TROPIC Python Security Environment",
     "image": "mcr.microsoft.com/devcontainers/python:3.11",
     
-    // 1. COMMANDE DE CRÉATION : Installe les dépendances après le build initial du conteneur.
+    // 1. Installe les dépendances après le build initial du conteneur.
     "postCreateCommand": "pip install --user -r requirements.txt && chmod +x start_app.sh",
 
-    // 2. COMMANDE DE DÉMARRAGE : Lance le script robuste à chaque fois que le Codespace est démarré.
+    // 2. Lance le script robuste à chaque fois que le Codespace est démarré.
     "postStartCommand": "./start_app.sh", 
 
-    // 3. Configuration des ports pour l'ouverture automatique
+    // 3. Configuration des ports pour Streamlit
     "forwardPorts": [8501],
     "portsAttributes": {
         "8501": {
             "label": "Streamlit TROPIC App",
-            "onAutoForward": "openBrowser" // Ouvre un navigateur automatiquement
+            "onAutoForward": "openBrowser" 
         }
     },
 
