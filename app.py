@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE TROPIC PRO - CONSOLE DE DIAGNOSTIC ACTIF + AUTO-LAUNCH CORRIGÉ)
+# app.py (VERSION FINALE TROPIC PRO - CONSOLE DE DIAGNOSTIC ACTIF + AUTO-LAUNCH)
 import streamlit as st
 import pandas as pd
 import json
@@ -222,7 +222,6 @@ def display_active_diagnostic_console(target):
             st.session_state.last_command = command 
             
             # Exécution du PoC (via le Module 3)
-            # Utilisation de la fonction importée, qui contient la logique non simulée
             new_output, status_code = simulate_poc_execution(target, command) 
             
             # Construit le nouveau contenu pour l'affichage (ajoute la commande et la sortie)
@@ -470,7 +469,7 @@ if __name__ == "__main__":
             print(f"FATAL ERROR: Failed to install minimum dependencies. Details: {e}")
             sys.exit(1)
         
-    # 2. CORRECTION FINALE : Lance Streamlit UNIQUEMENT si nous ne sommes pas déjà dans un thread Streamlit
+    # 2. Lancement Corrigé : Lance Streamlit UNIQUEMENT si nous ne sommes pas déjà dans un thread Streamlit
     if not is_running_streamlit():
         print("\nAttempting to launch Streamlit application via python -m streamlit...")
         try:
