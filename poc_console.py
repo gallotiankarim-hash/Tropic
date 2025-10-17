@@ -1,70 +1,43 @@
-# poc_console.py
+# poc_console.py (version corrigée & safe)
 import streamlit as st
-import streamlit.components.v1 as components
 from datetime import datetime
-from typing import Tuple
+import time
 
-# --- Importer simulate_poc_execution depuis Exploit_Adv si disponible ---
+# requests est recommandé — si tu ne l'as pas, ajouter dans requirements.txt
 try:
-    from Exploit_Adv import simulate_poc_execution
-except Exception:
-    # Placeholder si Exploit_Adv absent : simulate_poc_execution(target, command, force_real) -> (output, status_code)
-    def simulate_poc_execution(target: str, command: str, force_real: bool = False) -> Tuple[str, int]:
-        cmd = (command or "").strip().lower()
-        if cmd == "id":
-            return "uid=1000(tropic) gid=1000(tropic) groups=1000(tropic),27(sudo)", 200
-        if cmd == "ls":
-            return "app.py\npoc_console.py\nRecon.py\noutput/\nExploit_Adv.py", 200
-        # If command looks like a URL, emulate a remote GET
-        if cmd.startswith("http://") or cmd.startswith("https://"):
-            return f"[SIMULATED HTTP GET] {command}\n<response simulated>", 200
-        return f"[SIMULATED] Commande '{command}' non reconnue par le placeholder.", 404
+    import requests
+except ImportError:
+    requests = None
+
+# -----------------------------------------------------------------------------
+# UTIL: formate une entrée horodatée et l'ajoute à l'historique
+# -----------------------------------------------------------------------------
+def _append_history(msg: str):
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state['poc_shell_cmd_history_list'].append(f"[{ts}] {msg}")
+    # maintien d'une taille raisonnable
+    max_h = st.session_state.get('poc_max_history', 500)
+    if len(st.session_state['poc_shell_cmd_history_list']) > max_h:
+        st.session_state['poc_shell_cmd_history_list'] = st.session_state['poc_shell_cmd_history_list'][-max_h:]
 
 
-# -----------------------------------------------------------------------
-# Petit JS pour recadrer le focus sur le champ text entrée (améliore UX)
-# -----------------------------------------------------------------------
-_focus_js = """
-<script>
-(function(){
-  const inputs = parent.document.querySelectorAll('input[data-testid^="stTextInput"]');
-  if(inputs && inputs.length){
-    const last = inputs[inputs.length-1];
-    last.focus();
-    // place caret at end
-    const val = last.value;
-    last.value = '';
-    last.value = val;
-  }
-})();
-</script>
-"""
-
-
-def _set_focus():
-    """Injecte le JS qui tente de remettre le focus sur le dernier text_input Streamlit."""
-    try:
-        components.html(_focus_js, height=0)
-    except Exception:
-        # Ne pas casser l'UI si l'injection échoue
-        pass
-
-
-# ===============================================================================
-#                       FONCTION DE LA CONSOLE PoC (EXTERNE)
-# ===============================================================================
+# -----------------------------------------------------------------------------
+# FONCTION PRINCIPALE : render_poc_console
+# -----------------------------------------------------------------------------
 def render_poc_console(target_domain: str, user_config: dict):
     """
-    Console PoC intégrée :
-    - Utilise simulate_poc_execution(target, command, force_real)
-    - Stocke l'historique dans st.session_state sous clefs 'poc_*'
-    - Evite st.rerun() et conserve le contexte via st.form + mise à jour directe
+    Console PoC améliorée :
+     - commandes supportées : id, ls, probe:<URL>, http:<URL>, local:<command> (optionnel)
+     - utilise requests pour probe/http
+     - garde l'historique dans st.session_state sous préfixe 'poc_'
     """
 
     st.markdown("### 💻 Console PoC / Terminal d'Exploitation")
-    st.warning("⚠️ N'utilisez que sur des cibles pour lesquelles vous avez une autorisation écrite.")
+    st.warning("⚠️ Utiliser uniquement sur des cibles pour lesquelles vous avez une autorisation écrite.")
 
-    # --- INITIALISATION DES CLÉS D'ÉTAT ---
+    # -------------------------
+    # initialisation session
+    # -------------------------
     if 'poc_shell_cmd_history_list' not in st.session_state:
         st.session_state['poc_shell_cmd_history_list'] = []
     if 'poc_current_shell_command_input' not in st.session_state:
@@ -76,101 +49,189 @@ def render_poc_console(target_domain: str, user_config: dict):
     if 'poc_max_history' not in st.session_state:
         st.session_state['poc_max_history'] = 500
 
-    # --- Affichage de l'historique (ne pas forcer rerun) ---
-    hist_display = st.empty()
-    hist_list = st.session_state['poc_shell_cmd_history_list'][-st.session_state['poc_max_history']:]
-    if hist_list:
-        hist_display.code("\n".join(hist_list), language='bash')
+    # Affichage de l'historique (dernieres lignes)
+    if st.session_state['poc_shell_cmd_history_list']:
+        st.code("\n".join(st.session_state['poc_shell_cmd_history_list'][-st.session_state['poc_max_history']:]), language='bash')
     else:
-        hist_display.code("Aucun historique. Tapez 'id' ou 'ls' pour tester.", language='bash')
+        st.info("Historique vide — utilisez `id`, `ls`, `probe:<URL>` ou `http:<URL>`.")
 
     st.markdown("---")
 
-    # --- Utiliser un formulaire pour soumettre la commande (évite reruns intempestifs) ---
-    form_key = f"poc_form_{target_domain}"
-    with st.form(key=form_key, clear_on_submit=False):
-        cmd_input = st.text_input(
-            f"tropic@{target_domain}:~#",
-            value=st.session_state.get('poc_current_shell_command_input', ""),
-            key=f"poc_input_{target_domain}",
-            label_visibility="collapsed"
-        )
-
-        submit = st.form_submit_button("▶️ Exécuter PoC")
+    # champ de saisie (form pour éviter reruns intempestifs)
+    with st.form(key=f"poc_form_{target_domain}", clear_on_submit=False):
+        cmd_input = st.text_input("Entrer commande PoC (ex: probe:https://site.tld/login)", value=st.session_state.get('poc_current_shell_command_input',""))
+        submit = st.form_submit_button("▶️ Exécuter Commande PoC")
 
         if submit:
-            command = (cmd_input or "").strip()
-            # Sauvegarde immédiate de l'input dans session (utile si l'UI est rechargée)
-            st.session_state['poc_current_shell_command_input'] = ""
+            cmd = (cmd_input or "").strip()
+            # mémorise saisie
+            st.session_state['poc_current_shell_command_input'] = ""  # vide champ après submit
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            if not command:
-                st.warning("Aucune commande fournie.")
-            else:
-                # Vérification du flag d'autorisation
-                allow_real = bool(user_config.get('allow_real_poc', False))
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                # Ajout d'une entrée de requête dans l'historique
-                st.session_state['poc_shell_cmd_history_list'].append(f"[{timestamp}] $ {command}")
-
-                # Exécuter via simulate_poc_execution (Exploit_Adv) — la fonction renvoie (output, status_code)
-                try:
-                    # On tente d'appeler avec signature moderne (force_real)
-                    try:
-                        output_text, status_code = simulate_poc_execution(target_domain, command, force_real=allow_real)
-                    except TypeError:
-                        # Fallback si la fonction n'accepte que (target, command)
-                        output_text, status_code = simulate_poc_execution(target_domain, command)
-                except Exception as exc:
-                    output_text = f"[ERROR] simulate_poc_execution a levé une exception: {exc}"
-                    status_code = 500
-
-                # Normaliser la sortie en chaîne
-                if not isinstance(output_text, str):
-                    try:
-                        output_text = str(output_text)
-                    except Exception:
-                        output_text = "[ERROR] Impossible de convertir la sortie en texte."
-
-                # Découper la sortie en lignes et l'ajouter à l'historique
-                for line in output_text.splitlines():
-                    st.session_state['poc_shell_cmd_history_list'].append(line)
-
-                # Ajouter un séparateur visuel
-                st.session_state['poc_shell_cmd_history_list'].append("-" * 60)
-
-                # Truncation si l'historique dépasse la limite
-                if len(st.session_state['poc_shell_cmd_history_list']) > st.session_state['poc_max_history']:
-                    st.session_state['poc_shell_cmd_history_list'] = st.session_state['poc_shell_cmd_history_list'][-st.session_state['poc_max_history']:]
-
-                # Mettre à jour le statut et l'heure
-                st.session_state['poc_last_status'] = status_code
+            if not cmd:
+                st.warning("Commande vide — rien à exécuter.")
+                st.session_state['poc_last_status'] = "Aucune commande fournie"
                 st.session_state['poc_last_time'] = timestamp
+                st.experimental_rerun()
+                return
 
-                # Mise à jour immédiate de la zone d'historique (sans rerun complet)
-                hist_display.code("\n".join(st.session_state['poc_shell_cmd_history_list'][-st.session_state['poc_max_history']:]), language='bash')
+            # safe defaults
+            default_timeout = int(user_config.get('timeout', 7))
+            ua = user_config.get('user_agent', "TROPIC-PoC/1.0")
 
-                # Remettre le focus sur l input pour confort
-                _set_focus()
+            # --- commandes internes simples ---
+            if cmd.lower() == 'id':
+                _append_history("$ id")
+                # réponse simulée (ne révèle rien sur ta cible distante)
+                _append_history("uid=1000(tropic) gid=1000(tropic) groups=1000(tropic),27(sudo)")
+                st.session_state['poc_last_status'] = "200 (simulé)"
+                st.session_state['poc_last_time'] = timestamp
+                st.experimental_rerun()
+                return
 
-                # Affichage court du statut
-                if status_code == 200:
-                    st.success(f"Commande exécutée (HTTP {status_code}).")
-                elif status_code == 404:
-                    st.error("Cible/commande introuvable (404).")
-                elif status_code == 408:
-                    st.error("Timeout lors de l'appel.")
-                elif status_code == 500:
-                    st.error("Erreur interne lors de l'exécution du PoC.")
-                else:
-                    st.warning(f"Statut: {status_code}")
+            if cmd.lower() == 'ls':
+                _append_history("$ ls")
+                _append_history("app.py\npoc_console.py\nExploit_Adv.py\noutput/")
+                st.session_state['poc_last_status'] = "200 (simulé)"
+                st.session_state['poc_last_time'] = timestamp
+                st.experimental_rerun()
+                return
 
-    # --- Panneau d'informations / métadonnées ---
-    meta_col1, meta_col2 = st.columns([1, 3])
-    with meta_col1:
-        st.markdown("**Dernier statut**")
+            # --- probe:<URL> -> envoie GET paramètre input=TROPIC_TEST_<ts> et cherche réflexion ---
+            if cmd.lower().startswith("probe:"):
+                url = cmd[len("probe:"):].strip()
+                if not url:
+                    _append_history("$ probe: (URL manquante)")
+                    st.session_state['poc_last_status'] = "400 (probe URL manquante)"
+                    st.session_state['poc_last_time'] = timestamp
+                    st.experimental_rerun()
+                    return
+
+                _append_history(f"$ probe:{url}")
+                if requests is None:
+                    _append_history("[ERROR] requests non installé sur l'environnement.")
+                    st.session_state['poc_last_status'] = "500 (requests manquant)"
+                    st.session_state['poc_last_time'] = timestamp
+                    st.experimental_rerun()
+                    return
+
+                token = f"TROPIC_TEST_{int(time.time())}"
+                params = {'input': token}
+                try:
+                    headers = {'User-Agent': ua}
+                    r = requests.get(url, params=params, headers=headers, timeout=default_timeout, verify=True)
+                    body = r.text or ""
+                    # cherche le token dans la réponse (simple reflection check)
+                    if token in body:
+                        _append_history(f"[REFLECTED] Token {token} trouvé dans la réponse (HTTP {r.status_code}).")
+                        st.session_state['poc_last_status'] = f"{r.status_code} (REFLECTED)"
+                    else:
+                        _append_history(f"[NO-REFLECT] Token {token} non trouvé (HTTP {r.status_code}). Snippet: {body[:300]!s}")
+                        st.session_state['poc_last_status'] = f"{r.status_code} (NO-REFLECT)"
+                except requests.exceptions.SSLError as e:
+                    _append_history(f"[ERROR] SSL Error: {str(e)}")
+                    st.session_state['poc_last_status'] = "SSL-ERROR"
+                except requests.exceptions.ConnectTimeout:
+                    _append_history("[ERROR] Timeout (connect)")
+                    st.session_state['poc_last_status'] = "408"
+                except requests.exceptions.ReadTimeout:
+                    _append_history("[ERROR] Timeout (read)")
+                    st.session_state['poc_last_status'] = "408"
+                except requests.exceptions.RequestException as e:
+                    _append_history(f"[ERROR] Requête probe échouée: {str(e)}")
+                    st.session_state['poc_last_status'] = "ERROR"
+                st.session_state['poc_last_time'] = timestamp
+                st.experimental_rerun()
+                return
+
+            # --- http:<URL> -> simple GET, retourne status + body snippet ---
+            if cmd.lower().startswith("http:") or cmd.lower().startswith("https:"):
+                # allow both "http:https://..." accidental use — try to normalize
+                url = cmd
+                # if user typed "http:https://...", try to clean obvious mistakes
+                if url.startswith("http://http://") or url.startswith("https://http://") or url.startswith("http://https://"):
+                    # cleanup double scheme
+                    url = url.split("://", 1)[-1]
+                    url = "http://" + url
+                _append_history(f"$ http:{url}")
+                if requests is None:
+                    _append_history("[ERROR] requests non installé sur l'environnement.")
+                    st.session_state['poc_last_status'] = "500 (requests manquant)"
+                    st.session_state['poc_last_time'] = timestamp
+                    st.experimental_rerun()
+                    return
+                try:
+                    headers = {'User-Agent': ua}
+                    r = requests.get(url, headers=headers, timeout=default_timeout, verify=True)
+                    snippet = (r.text or "")[:600]
+                    _append_history(f"[HTTP {r.status_code}] Snippet: {snippet!s}")
+                    st.session_state['poc_last_status'] = f"{r.status_code}"
+                except requests.exceptions.RequestException as e:
+                    _append_history(f"[ERROR] Requête HTTP échouée: {str(e)}")
+                    st.session_state['poc_last_status'] = "ERROR"
+                st.session_state['poc_last_time'] = timestamp
+                st.experimental_rerun()
+                return
+
+            # --- local:<cmd> -> exécution locale (forte restriction) ---
+            if cmd.lower().startswith("local:"):
+                if not user_config.get('allow_real_poc', False):
+                    _append_history("$ " + cmd)
+                    _append_history("[BLOCKED] Exécution locale désactivée par configuration.")
+                    st.session_state['poc_last_status'] = "403 (local exec blocked)"
+                    st.session_state['poc_last_time'] = timestamp
+                    st.experimental_rerun()
+                    return
+                # Exécuter seulement commandes whitelistées si tu veux (par défaut on bloque)
+                # Ici on autorise une petite whitelist basique : ls, id, whoami (ATTENTION)
+                local_cmd = cmd[len("local:"):].strip()
+                allowed = ["ls", "ls -la", "id", "whoami", "pwd"]
+                if local_cmd.split()[0] not in [a.split()[0] for a in allowed]:
+                    _append_history(f"$ {local_cmd}")
+                    _append_history("[BLOCKED] Commande locale non autorisée par la whitelist.")
+                    st.session_state['poc_last_status'] = "403 (command not allowed)"
+                    st.session_state['poc_last_time'] = timestamp
+                    st.experimental_rerun()
+                    return
+                # Si autorisé, exécuter via subprocess mais attention
+                import subprocess
+                try:
+                    res = subprocess.run(local_cmd, shell=True, capture_output=True, text=True, timeout=60)
+                    if res.stdout:
+                        for line in res.stdout.strip().splitlines():
+                            _append_history(line)
+                    if res.stderr:
+                        for line in res.stderr.strip().splitlines():
+                            _append_history(f"[ERR] {line}")
+                    st.session_state['poc_last_status'] = f"local returncode {res.returncode}"
+                except subprocess.TimeoutExpired:
+                    _append_history("[ERROR] Commande locale expirée (timeout)")
+                    st.session_state['poc_last_status'] = "408"
+                except Exception as e:
+                    _append_history(f"[ERROR] Exception lors de l'exécution locale: {str(e)}")
+                    st.session_state['poc_last_status'] = "ERROR"
+                st.session_state['poc_last_time'] = timestamp
+                st.experimental_rerun()
+                return
+
+            # --- commande inconnue: on renvoie aide synthétique ---
+            _append_history(f"$ {cmd}")
+            _append_history("[SIMULATED] Commande non reconnue. Commandes supportées :")
+            _append_history("  - id")
+            _append_history("  - ls")
+            _append_history("  - probe:<URL>   -> test reflection en GET ?input=<token>")
+            _append_history("  - http:<URL>    -> GET simple (status + body snippet)")
+            _append_history("  - local:<cmd>   -> exécuter localement (si allow_real_poc True, whitelist)")
+            st.session_state['poc_last_status'] = "400 (unknown command)"
+            st.session_state['poc_last_time'] = timestamp
+            st.experimental_rerun()
+            return
+
+    # petit récap en dessous
+    cols = st.columns([1, 3])
+    with cols[0]:
+        st.write("Dernier statut")
         st.write(st.session_state.get('poc_last_status', "N/A"))
-    with meta_col2:
-        st.markdown("**Dernier appel**")
+    with cols[1]:
+        st.write("Dernière action")
         st.write(st.session_state.get('poc_last_time', "N/A"))
-
-    st.markdown("")  # petit espace final
