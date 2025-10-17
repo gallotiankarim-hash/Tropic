@@ -1,0 +1,23 @@
+{
+    "name": "TROPIC Python Security Environment",
+    "image": "mcr.microsoft.com/devcontainers/python:3.11",
+    
+    // Assurez-vous que les dépendances sont installées à partir de requirements.txt
+    "postCreateCommand": "pip install --user -r requirements.txt",
+
+    "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python"
+    },
+
+    // Configuration des ports pour Streamlit
+    "forwardPorts": [8501],
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance"
+            ]
+        }
+    }
+}
