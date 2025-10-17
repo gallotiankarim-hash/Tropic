@@ -33,6 +33,8 @@ def execute_and_capture(func, target, config=None, module_name="Module"):
     """Exécute une fonction d'analyse et capture son output stdout/logs."""
     
     if module_name == "Module 3": 
+        # Le Module 3 (Vulnerability Scan) utilise un générateur pour les logs en temps réel, 
+        # il n'est donc pas exécuté ici. Le code principal gère son exécution.
         return "", 0 
         
     start_time = datetime.now()
@@ -439,61 +441,67 @@ def main():
                 display_api_scan_report(target_domain)
                 st.markdown("---")
 
-        # 3. MODULE VULN SCAN (Exploit_Adv.py) - LOGS EN TEMPS RÉEL (FIXE)
+        # 3. MODULE VULN SCAN (Exploit_Adv.py) - LOGS EN TEMPS RÉEL (FIX)
         if run_vuln_module:
             if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
                 st.warning("⏩ Skipping Module 3 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
             else:
-                # 1. Barre de Progression FIXE (dans la sidebar)
-                st.sidebar.markdown("---")
-                # Crée un conteneur pour garantir que le titre et la barre restent ensemble et stables
-                progress_container = st.sidebar.empty()
                 
-                with progress_container.container():
-                    st.subheader("🔴 SCAN EN COURS (PROGRESS)") 
-                    progress_bar = st.progress(0)
-                    progress_text = st.empty() 
-
+                # --- NOUVELLE BARRE DE STATUT & PROGRESSION DANS LE CONTENEUR PRINCIPAL ---
                 st.subheader("💻 Terminal d'Exploitation en Temps Réel (Logs)")
                 
-                # Conteneur des logs (dans la zone principale)
-                log_area = st.empty() 
-                full_log_text = ""
-                
-                start_time = datetime.now()
-                
-                # Appel du générateur de scan
-                scan_generator = run_vulnerability_scan(target_domain, user_config)
-                
-                for log_line in scan_generator:
+                # Crée un statut Streamlit pour l'indicateur global
+                with st.status(f"Module 3: Préparation du Scan de Vulnérabilités Avancé sur **{target_domain}**...", expanded=True) as status:
                     
-                    # Détection de l'état d'avancement du générateur
-                    if log_line.startswith("[STATE]"):
-                        try:
-                            completed, total = map(int, log_line.split(" ")[1].split('/'))
-                            percent_complete = completed / total
-                            
-                            # Mise à jour de la barre et du texte dans la sidebar (FIXE)
-                            progress_bar.progress(percent_complete)
-                            progress_text.markdown(f"**Cibles scannées:** `{completed}/{total}`")
-                            
-                        except Exception:
-                            pass
+                    # Place la barre de progression DANS le statut
+                    progress_bar = status.progress(0, text="Initialisation...")
                     
-                    # Affichage du Log normal
-                    else:
-                        full_log_text += f"\n{log_line}"
-                        # Utiliser le format st.code pour l'affichage terminal
-                        log_area.code(full_log_text, language='markdown') 
-                        time.sleep(0.05) # Petite pause pour le rafraîchissement Streamlit
+                    # Crée un placeholder pour les logs DANS le statut pour les logs de progression/processus
+                    status_log_area = status.empty() 
+                    full_log_text = ""
+                    
+                    start_time = datetime.now()
+                    
+                    # L'exécution du générateur de scan
+                    scan_generator = run_vulnerability_scan(target_domain, user_config)
+                    
+                    # Affiche le conteneur de logs réels juste en dessous de la barre de statut principale
+                    log_area_main = st.empty() 
+                    
+                    for log_line in scan_generator:
+                        
+                        # 1. Mise à jour de la barre de progression (détection du format [STATE])
+                        if log_line.startswith("[STATE]"):
+                            try:
+                                # Supprime le [STATE] préfixe et extrait les nombres
+                                parts = log_line[7:].strip().split('/')
+                                completed = int(parts[0])
+                                total = int(parts[1])
+                                percent_complete = completed / total
+                                
+                                # Mise à jour de la barre DANS le status
+                                progress_bar.progress(percent_complete, text=f"Scanning... {completed}/{total} cibles.")
+                                # Affiche un log de progression DANS la zone de statut
+                                status_log_area.write(f"Avancement: {completed} de {total} cibles...")
+                                
+                            except Exception:
+                                # Si le format est incorrect, on considère la ligne comme un log normal
+                                full_log_text += f"\n{log_line}"
+                                status_log_area.write(f"Log de statut: {log_line}")
+                        
+                        # 2. Affichage du Log normal (pour le terminal principal)
+                        else:
+                            full_log_text += f"\n{log_line}"
+                            # Mise à jour du placeholder de logs principal (terminal)
+                            log_area_main.code(full_log_text, language='bash') 
+                            # ! CRITIQUE : on supprime le time.sleep(0.05) !
 
-                elapsed_time = (datetime.now() - start_time).total_seconds()
-                
-                # Finalisation de la barre fixe: écraser l'ancien conteneur
-                with progress_container.container():
-                    st.subheader("✅ SCAN TERMINÉ")
-                    st.success(f"Terminé en {elapsed_time:.2f}s")
+                    elapsed_time = (datetime.now() - start_time).total_seconds()
+                    
+                    # Finalisation du statut
+                    status.update(label=f"✅ Module 3 (Vuln. Scan) terminé en {elapsed_time:.2f}s", state="complete", expanded=False)
 
+                # Mise à jour des logs finaux
                 all_logs.append(f"\n--- LOGS MODULE 3 ({elapsed_time:.2f}s) ---\n" + full_log_text)
 
                 display_vuln_scan_report(target_domain)
@@ -552,3 +560,4 @@ def main():
 # --- BLOC DE LANCEMENT SIMPLIFIÉ ---
 if __name__ == "__main__":
     main()
+
