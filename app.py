@@ -9,14 +9,10 @@ from datetime import datetime
 import subprocess
 import time
 
-# 🔥 Importation du module de console séparé (doit être dans poc_console.py) 🔥
-# On ne l'importe pas ici pour gérer l'erreur plus bas dans la console PoC
-
-# Importation des moteurs d'analyse.
+# 🔥 Importation des modules (Moteurs d'Analyse et Console PoC)
 try:
     from Recon import run_recon
     from Api_scan import run_api_scan, SECURITY_SCORE_WEIGHTS
-    # Le module 3 est Exploit_Adv.py
     from Exploit_Adv import run_vulnerability_scan, simulate_poc_execution 
 except ImportError as e:
     # Définit des placeholders si l'importation échoue.
@@ -27,6 +23,8 @@ except ImportError as e:
     run_recon = run_api_scan = run_vulnerability_scan = simulate_poc_execution = placeholder_func
     SECURITY_SCORE_WEIGHTS = {'ENDPOINT_EXPOSED': 15, 'INJECTION_VULNERABLE': 30, 'PARAM_REFLECTION': 10}
 
+# On importe poc_console plus bas dans le try/except de la section 5 pour une meilleure gestion des erreurs.
+
 
 # ===============================================================================
 #                             FONCTIONS D'EXECUTION / LOGS
@@ -34,7 +32,7 @@ except ImportError as e:
 
 def execute_and_capture(func, target, config=None, module_name="Module"):
     """Exécute une fonction d'analyse et capture son output stdout/logs."""
-    
+    # ... (fonction inchangée) ...
     if module_name == "Module 3": 
         # Le Module 3 (Vulnerability Scan) utilise un générateur pour les logs en temps réel.
         return "", 0 
@@ -55,6 +53,7 @@ def execute_and_capture(func, target, config=None, module_name="Module"):
 
 def execute_post_scan_command(target_domain, command, output_lines):
     """Exécute une commande système fournie par l'utilisateur."""
+    # ... (fonction inchangée) ...
     final_command = command.replace("{TARGET}", target_domain)
     output_lines.append(f"\n[POST-SCAN] >>> EXÉCUTION DE COMMANDE SYSTÈME <<<")
     output_lines.append(f"[POST-SCAN] Commande lancée: {final_command}")
@@ -81,6 +80,7 @@ def execute_post_scan_command(target_domain, command, output_lines):
 #                           CONFIGURATION DES MODULES
 # ===============================================================================
 
+# ... (load_user_config inchangée) ...
 def load_user_config():
     """Charge les options de configuration depuis la sidebar."""
     st.sidebar.header("⚙️ Configuration des Modules")
@@ -125,9 +125,12 @@ def load_user_config():
         "allow_real_poc": allow_real_poc
     }
 
+
 # ===============================================================================
 #                             FONCTIONS D'AFFICHAGE DU RAPPORT
 # ===============================================================================
+
+# ... (display_recon_report, display_api_scan_report, display_vuln_scan_report inchangées) ...
 
 def display_recon_report(target):
     st.subheader("📊 Module 1 : Résultat de la Reconnaissance")
@@ -320,9 +323,12 @@ def main():
     # --- CHARGEMENT DE LA CONFIGURATION UTILISATEUR ---
     user_config = load_user_config()
     
-    # ✅ CORRECTION UnboundLocalError: Initialiser all_logs avant tout bloc conditionnel.
+    # ✅ Correction UnboundLocalError
     all_logs = [] 
-
+    
+    # Indicateur global de succès/échec pour les effets de fin
+    scan_successful = True
+    
     # --------------------------------------------------------------------------
     # --- PERSISTANCE SESSION_STATE (INITIALISATION CLASSIQUE ET CORRIGÉE) ---
     # --------------------------------------------------------------------------
@@ -337,13 +343,12 @@ def main():
     if 'module3_running' not in st.session_state:
         st.session_state['module3_running'] = False
         
-    # ✅ Clés nécessaires pour la console PoC (maintenant au format LISTE pour la performance)
+    # ✅ Clés nécessaires pour la console PoC 
     if 'shell_cmd_history' in st.session_state:
-        # Nettoyage de l'ancienne clé string si elle existe pour éviter les conflits
         del st.session_state['shell_cmd_history']
         
     if 'shell_cmd_history_list' not in st.session_state:
-        st.session_state['shell_cmd_history_list'] = [] # Nouvelle clé: Liste vide
+        st.session_state['shell_cmd_history_list'] = [] 
     if 'current_shell_command_input' not in st.session_state:
         st.session_state['current_shell_command_input'] = ""
 
@@ -393,6 +398,7 @@ def main():
         if run_api_module:
             if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
                 st.warning("⏩ Skipping Module 2 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
+                scan_successful = False # Marquer un échec partiel
             else:
                 with placeholder.status(f"Module 2: Exécution de l'Analyse API/Headers...", expanded=True) as status:
                     log, time_elapsed = execute_and_capture(run_api_scan, target_domain, user_config, module_name="Module 2")
@@ -405,6 +411,7 @@ def main():
         if run_vuln_module:
             if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
                 st.warning("⏩ Skipping Module 3 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
+                scan_successful = False # Marquer un échec partiel
             else:
                 
                 st.subheader("💻 Terminal d'Exploitation en Temps Réel (Logs)")
@@ -416,7 +423,8 @@ def main():
                         st.session_state['module3_elapsed'] = 0.0
                         st.session_state['module3_run_id'] = None
                         st.session_state['module3_running'] = False
-                        run_vuln_module = True
+                        # On force une ré-exécution complète de la fonction main() pour relancer le scan
+                        st.rerun() 
 
                 if st.session_state.get('module3_run_id') == target_domain and st.session_state.get('module3_logs') and not st.session_state.get('module3_running'):
                     elapsed = st.session_state.get('module3_elapsed', 0.0)
@@ -438,14 +446,14 @@ def main():
                         st.session_state['module3_run_id'] = target_domain
                         st.session_state['module3_logs'] = "" 
 
-                        scan_generator = run_vulnerability_scan(target_domain, user_config)
-                        log_area_main = st.empty() 
-                        
-                        for log_line in scan_generator:
+                        try:
+                            scan_generator = run_vulnerability_scan(target_domain, user_config)
+                            log_area_main = st.empty() 
                             
-                            try:
-                                if isinstance(log_line, str) and log_line.startswith("[STATE]"):
-                                    try:
+                            for log_line in scan_generator:
+                                
+                                try:
+                                    if isinstance(log_line, str) and log_line.startswith("[STATE]"):
                                         parts = log_line[7:].strip().split('/')
                                         if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
                                             completed = int(parts[0])
@@ -455,15 +463,17 @@ def main():
                                             status_log_area.write(f"Avancement: {completed} de {total} cibles...")
                                         else:
                                             status_log_area.write(log_line[7:].strip())
-                                    except Exception:
-                                        status_log_area.write(f"Log de statut: {log_line}")
-                                else:
-                                    st.session_state['module3_logs'] = (st.session_state.get('module3_logs','') + "\n" + str(log_line)).strip()
-                                    log_area_main.code(st.session_state['module3_logs'], language='bash') 
-                            except Exception as e:
-                                st.session_state['module3_logs'] = (st.session_state.get('module3_logs','') + "\n" + f"[LOG-PROCESS-ERROR] {str(e)}").strip()
-                                log_area_main.code(st.session_state['module3_logs'], language='bash')
-
+                                    else:
+                                        st.session_state['module3_logs'] = (st.session_state.get('module3_logs','') + "\n" + str(log_line)).strip()
+                                        log_area_main.code(st.session_state['module3_logs'], language='bash') 
+                                except Exception as e:
+                                    st.session_state['module3_logs'] = (st.session_state.get('module3_logs','') + "\n" + f"[LOG-PROCESS-ERROR] {str(e)}").strip()
+                                    log_area_main.code(st.session_state['module3_logs'], language='bash')
+                        except Exception as e:
+                            # Erreur critique du module lui-même (ex: ImportError dans un sous-module)
+                            st.error(f"Erreur critique lors du lancement du Module 3: {e}")
+                            scan_successful = False
+                        
                         elapsed_time = (datetime.now() - start_time).total_seconds()
                         
                         st.session_state['module3_elapsed'] = elapsed_time
@@ -484,6 +494,14 @@ def main():
                 execute_post_scan_command(target_domain, user_config['post_scan_command'], output_lines)
                 all_logs.append(f"\n--- LOGS POST-SCAN EXECUTOR ---\n" + "\n".join(output_lines))
                 status.update(label=f"✅ Commande Post-Scan terminée", state="complete", expanded=False)
+        
+        # Effets de fin après l'exécution de tous les modules
+        if scan_successful:
+            st.confetti() # Confettis pour un succès propre
+            st.toast("Analyse complète terminée avec succès ! 🚀", icon='✅')
+        else:
+            st.snow() # Neige/Échec pour une exécution incomplète ou avec erreurs critiques
+            st.toast("Analyse terminée avec des avertissements/erreurs. ⚠️", icon='🚨')
 
     
     # =======================================================
@@ -491,10 +509,8 @@ def main():
     # =======================================================
     
     # Ajout des colonnes pour l'espacement: 1 (gauche), 3 (contenu), 1 (droite)
-    # Ceci mettra un espace sur les côtés de la console PoC
     col_spacer_left, col_content, col_spacer_right = st.columns([1, 3, 1])
 
-    # Tout le contenu du bloc original va dans la colonne centrale (col_content)
     with col_content:
         st.markdown("---")
 
@@ -537,7 +553,7 @@ def main():
         st.markdown("---")
 
         
-    # Section de Documentation Éthique et Méthodologie (Indentation rétablie au niveau de main())
+    # Section de Documentation Éthique et Méthodologie
     st.markdown("---")
     
     with st.expander("Méthodologie TROPIC : Détails du Score de Sécurité et Éthique"):
@@ -569,10 +585,9 @@ def main():
 
     # Affichage du Log Final
     with st.expander("Voir les Logs d'Exécution Bruts (Multi-Module et Post-Scan)"):
-        # L'utilisation de all_logs est maintenant sécurisée
         st.code(''.join(all_logs), language='bash')
     
-    st.balloons()
+    # ❌ La section balloons a été déplacée dans le bloc IF pour un contrôle conditionnel.
 
 # --- BLOC DE LANCEMENT SIMPLIFIÉ ---
 if __name__ == "__main__":
