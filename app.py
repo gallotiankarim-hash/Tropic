@@ -481,20 +481,6 @@ def main():
         
         st.balloons()
 
-
-def is_running_streamlit():
-    """Vérifie si Streamlit est déjà en cours d'exécution (Simplifié)."""
-    # Dans un environnement Streamlit lancé correctement, cette vérification est simplifiée.
-    return 'streamlit' in sys.modules
-
+# --- BLOC DE LANCEMENT SIMPLIFIÉ ---
 if __name__ == "__main__":
-    
-    # 1. Installer les dépendances (nécessite requirements.txt)
-    # RAPPEL ÉTHIQUE : Le code d'installation automatique via subprocess est retiré pour
-    # encourager l'installation manuelle propre par l'utilisateur via pip.
-    # print("Initialisation des dépendances... (À exécuter manuellement via pip install -r requirements.txt)")
-    
-    # 2. Lancement Corrigé : Appeler main() directement
-    # Streamlit exécute le script; nous appelons juste la fonction principale.
     main()
-
