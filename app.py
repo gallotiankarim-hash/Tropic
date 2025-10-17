@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE PROPRE, MODULAIRE ET STABLE)
+# app.py (VERSION FINALE PROPRE, MODULAIRE ET STABLE avec marge corrigée)
 import streamlit as st
 import pandas as pd
 import json
@@ -237,6 +237,8 @@ def main():
           font-family: 'Monospace', monospace; 
           text-transform: uppercase;
           font-size: 3em; 
+          /* 💡 CORRECTION MARGE HAUTE du TITRE */
+          margin-top: 0px !important; 
         }
 
         /* AMÉLIORATION DE LA BARRE LATÉRALE (SIDEBAR) */
@@ -299,6 +301,26 @@ def main():
         [data-testid="stImage"] {
             text-align: center;
         }
+
+        /* --- BANNIÈRE --- */
+        .banner-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: transparent;
+            /* 💡 CORRECTION MARGE HAUTE du CONTENEUR BANNER */
+            margin: 0 auto 16px auto !important; 
+            padding: 4px;
+            border-radius: 8px;
+        }
+        /* Styles pour l'image générée par st.image */
+        .stImage > img {
+            max-width: 100%;
+            height: auto;
+            max-height: 160px;
+            border-radius: 6px;
+        }
+
     </style>
     """, unsafe_allow_html=True)
 
@@ -312,7 +334,7 @@ def main():
         Retourne le chemin du premier .gif trouvé dans le dossier 'assets/' 
         (qui doit être au même niveau que app.py).
         """
-        # 💡 CHEMIN CORRIGÉ: Recherche directement dans le dossier 'assets'
+        # CHEMIN CORRIGÉ: Recherche directement dans le dossier 'assets'
         assets_dir = "assets" 
         
         # Testez les candidats en minuscules (meilleure pratique)
@@ -321,8 +343,6 @@ def main():
         for c in candidates:
             p = os.path.join(assets_dir, c)
             if os.path.exists(p):
-                # Ajout pour diagnostic
-                # st.sidebar.info(f"DEBUG PATH: Fichier trouvé: {os.path.abspath(p)}")
                 return p
         
         # Fallback générique : cherche n'importe quel .gif dans le dossier (case-insensitive)
@@ -330,41 +350,14 @@ def main():
             for f in os.listdir(assets_dir):
                 if f.lower().endswith(".gif"):
                     p = os.path.join(assets_dir, f)
-                    # st.sidebar.info(f"DEBUG PATH: Fallback trouvé: {os.path.abspath(p)}")
                     return p
         
-        # st.sidebar.error(f"DEBUG PATH: Dossier cherché: {os.path.abspath(assets_dir)}")
         return None
 
     with col_content:
         gif_path = _find_banner_path()
 
-        # Injection du style CSS pour la bannière
-        st.markdown(
-            """
-            <style>
-                /* --- BANNIÈRE --- */
-                .banner-container {
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    background-color: transparent;
-                    margin: 0 auto 16px auto;
-                    padding: 4px;
-                    border-radius: 8px;
-                }
-
-                /* Styles pour l'image générée par st.image */
-                .stImage > img {
-                    max-width: 100%;
-                    height: auto;
-                    max-height: 160px;
-                    border-radius: 6px;
-                }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
+        # Le CSS de la bannière a été intégré dans le bloc CSS principal
 
         if gif_path and os.path.exists(gif_path):
             st.markdown('<div class="banner-container">', unsafe_allow_html=True)
@@ -380,7 +373,7 @@ def main():
             # Mise à jour du message d'erreur pour le nouveau chemin
             st.warning("⚠️ Bannière introuvable : place ton fichier GIF (ex: banner.gif) dans le dossier 'assets/' au même niveau que app.py.")
 
-        # Titre Néon
+        # Titre Néon (la marge supérieure est réinitialisée par le CSS ci-dessus)
         st.markdown('<h1 class="neon">TROPIC 🌴 by Karim</h1>', unsafe_allow_html=True)
         st.markdown("Outil de sécurité complet en 3 phases, incluant un exécuteur de commandes post-scan.")
 
