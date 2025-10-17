@@ -30,26 +30,24 @@ except ImportError as e:
 # ===============================================================================
 
 def execute_and_capture(func, target, config=None, module_name="Module"):
-    """Exécute une fonction d'analyse et capture son output stdout/logs, gérant les générateurs."""
+    """Exécute une fonction d'analyse et capture son output stdout/logs."""
     
-    # Si la fonction n'est pas un générateur (cas de Recon et API Scan)
-    if module_name != "Module 3": 
-        start_time = datetime.now()
-        old_stdout = sys.stdout
-        redirected_output = sys.stdout = StringIO()
-        try:
-            if config:
-                func(target, config)
-            else:
-                func(target)
-        finally:
-            sys.stdout = old_stdout
-        elapsed_time = (datetime.now() - start_time).total_seconds()
-        return redirected_output.getvalue(), elapsed_time
-    
-    # Le Module 3 gère son propre logging en temps réel (voir main())
-    # Cette fonction est principalement pour les modules 1 et 2
-    return "", 0 
+    # Le Module 3 (Vuln Scan) est géré directement dans main() car il utilise un générateur.
+    if module_name == "Module 3": 
+        return "", 0 
+        
+    start_time = datetime.now()
+    old_stdout = sys.stdout
+    redirected_output = sys.stdout = StringIO()
+    try:
+        if config:
+            func(target, config)
+        else:
+            func(target)
+    finally:
+        sys.stdout = old_stdout
+    elapsed_time = (datetime.now() - start_time).total_seconds()
+    return redirected_output.getvalue(), elapsed_time
 
 
 def execute_post_scan_command(target_domain, command, output_lines):
@@ -211,10 +209,8 @@ def display_active_diagnostic_console(target):
         st.session_state.poc_output = ""
     if 'shell_cmd_history' not in st.session_state:
         st.session_state.shell_cmd_history = ""
-    # Variable pour stocker la dernière commande exécutée pour éviter les boucles d'exécution
     if 'last_executed_command' not in st.session_state:
         st.session_state.last_executed_command = ""
-    # Flag pour forcer l'exécution par le bouton
     if 'execute_poc_flag' not in st.session_state:
         st.session_state.execute_poc_flag = False
 
@@ -236,17 +232,16 @@ def display_active_diagnostic_console(target):
         # Le bouton déclenche l'exécution en utilisant le handler
         execute_button = st.button("Exécuter PoC", type="secondary", use_container_width=True, on_click=set_execute_flag)
 
-    # Déclenchement de la logique : soit par le bouton (flag), soit par l'utilisateur qui tape Entrée (changement de valeur)
-    if st.session_state.execute_poc_flag or \
-       (command_input and command_input.strip() != st.session_state.last_executed_command):
+    # Déclenchement de la logique : uniquement par le flag du bouton
+    if st.session_state.execute_poc_flag:
         
-        # Réinitialiser le flag après la vérification
+        # Réinitialiser le flag APRÈS la vérification
         st.session_state.execute_poc_flag = False
         
-        command = command_input.strip()
+        command = st.session_state.current_shell_command_input.strip()
 
         if command:
-            # Enregistre la commande pour éviter la réexécution (à moins d'un changement)
+            # Enregistre la commande pour référence
             st.session_state.last_executed_command = command 
             
             new_output = ""
@@ -255,7 +250,6 @@ def display_active_diagnostic_console(target):
             # --- BLOC D'EXÉCUTION DU PoC (avec gestion des erreurs) ---
             try:
                 # Exécution du PoC (via le Module 3)
-                # simulate_poc_execution doit renvoyer (output_str, status_code_int)
                 new_output, status_code = simulate_poc_execution(target, command) 
             except ImportError:
                 new_output = "ERREUR CRITIQUE: Le module Exploit_Adv.py ou la fonction simulate_poc_execution est manquant(e)."
@@ -272,7 +266,17 @@ def display_active_diagnostic_console(target):
             st.session_state.shell_cmd_history += new_output + "\n\n"
             
             # Pour vider visuellement le champ de saisie après l'exécution
-            st.session_state.current_shell_command_input = "" 
+            st.session_state["current_shell_command_input"] = "" 
+            
+            # Relance l'application pour afficher les résultats sans perdre le contexte
+            st.rerun() 
+        else:
+            # Si le bouton est cliqué mais le champ est vide
+            st.session_state.shell_cmd_history += f"tropic@{target}:~# \n"
+            st.session_state.shell_cmd_history += "STATUT HTTP : 400\n[ERROR] Commande vide.\n\n"
+
+            st.session_state["current_shell_command_input"] = "" 
+            st.rerun()
             
     # Affichage de la Console
     st.markdown("---")
@@ -337,6 +341,17 @@ def main():
         .red-flag-box p {
             color: #ff9999 !important;
         }
+        
+        /* Style pour les logs en temps réel */
+        .stCode {
+            background-color: #0c0c0c !important;
+            color: #00ff00 !important;
+            border: 1px solid #00ff00;
+            padding: 15px;
+            font-size: 14px;
+            overflow-x: auto;
+            max-height: 400px; /* Limite la hauteur du terminal */
+        }
     </style>
     """, unsafe_allow_html=True)
     
@@ -367,7 +382,7 @@ def main():
     st.markdown("---")
 
     # --- INPUT DOMAIN ---
-    target_domain = st.text_input("Domaine Cible (Ex: example.com)", value="example.com")
+    target_domain = st.text_input("Domaine Cible (Ex: votre-cible.com)", value="votre-cible.com")
     st.markdown("---")
 
     # --- SÉLECTION DES MODULES ---
@@ -417,17 +432,20 @@ def main():
                 display_api_scan_report(target_domain)
                 st.markdown("---")
 
-        # 3. MODULE VULN SCAN (Exploit_Adv.py) - LOGS EN TEMPS RÉEL
+        # 3. MODULE VULN SCAN (Exploit_Adv.py) - LOGS EN TEMPS RÉEL (FIXE)
         if run_vuln_module:
             if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
                 st.warning("⏩ Skipping Module 3 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
             else:
-                st.subheader("🔴 Terminal d'Exploitation en Temps Réel (Logs)")
+                # 1. Barre de Progression FIXE (dans la sidebar)
+                st.sidebar.markdown("---")
+                st.sidebar.subheader("🔴 SCAN EN COURS (PROGRESS)")
+                progress_bar = st.sidebar.progress(0)
+                progress_text = st.sidebar.empty() # Pour afficher le texte d'état
+
+                st.subheader("💻 Terminal d'Exploitation en Temps Réel (Logs)")
                 
-                # Conteneur de la barre de progression
-                progress_bar = st.progress(0, text="Initialisation...")
-                
-                # Conteneur des logs
+                # Conteneur des logs (dans la zone principale)
                 log_area = st.empty() 
                 full_log_text = ""
                 
@@ -441,10 +459,13 @@ def main():
                     # Détection de l'état d'avancement du générateur
                     if log_line.startswith("[STATE]"):
                         try:
-                            # Format: [STATE] 5/50
                             completed, total = map(int, log_line.split(" ")[1].split('/'))
                             percent_complete = completed / total
-                            progress_bar.progress(percent_complete, text=f"Scanning {completed}/{total} cibles...")
+                            
+                            # Mise à jour de la barre et du texte dans la sidebar (FIXE)
+                            progress_bar.progress(percent_complete)
+                            progress_text.markdown(f"**Cibles scannées:** `{completed}/{total}`")
+                            
                         except Exception:
                             pass
                     
@@ -452,10 +473,14 @@ def main():
                     else:
                         full_log_text += f"\n{log_line}"
                         log_area.code(full_log_text, language='markdown') 
-                        time.sleep(0.05) # Petite pause pour le rafraîchissement Streamlit
+                        time.sleep(0.05) 
 
                 elapsed_time = (datetime.now() - start_time).total_seconds()
-                progress_bar.progress(1.0, text=f"✅ Module 3 (Vuln Scan) terminé en {elapsed_time:.2f}s")
+                
+                # Finalisation de la barre fixe
+                progress_bar.progress(1.0)
+                progress_text.success(f"✅ Terminé en {elapsed_time:.2f}s")
+
                 all_logs.append(f"\n--- LOGS MODULE 3 ({elapsed_time:.2f}s) ---\n" + full_log_text)
 
                 display_vuln_scan_report(target_domain)
