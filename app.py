@@ -11,6 +11,7 @@ import time
 
 # 🔥 Importation des modules (Moteurs d'Analyse et Console PoC)
 try:
+    # Assurez-vous que ces modules existent dans votre environnement
     from Recon import run_recon
     from Api_scan import run_api_scan, SECURITY_SCORE_WEIGHTS
     from Exploit_Adv import run_vulnerability_scan, simulate_poc_execution 
@@ -21,6 +22,7 @@ except ImportError as e:
             return f"ERREUR CRITIQUE: Le module de sécurité est manquant. Détails: {e}", 500
         raise ImportError(f"FATAL ERROR: Security module missing or misnamed. Details: {e}") 
     run_recon = run_api_scan = run_vulnerability_scan = simulate_poc_execution = placeholder_func
+    # Valeurs par défaut si le module Api_scan est manquant
     SECURITY_SCORE_WEIGHTS = {'ENDPOINT_EXPOSED': 15, 'INJECTION_VULNERABLE': 30, 'PARAM_REFLECTION': 10}
 # La console PoC (poc_console) est importée dans la fonction main() pour gérer les dépendances.
 
@@ -56,6 +58,7 @@ def execute_post_scan_command(target_domain, command, output_lines):
     output_lines.append(f"\n[POST-SCAN] >>> EXÉCUTION DE COMMANDE SYSTÈME <<<")
     output_lines.append(f"[POST-SCAN] Commande lancée: {final_command}")
     try:
+        # Utilisation de shell=True pour la substitution de commande et l'exécution
         result = subprocess.run(final_command, shell=True, capture_output=True, text=True, check=True)
         output_lines.append(f"[POST-SCAN] Statut: SUCCÈS (Code {result.returncode})")
         output_lines.append(f"[POST-SCAN] Sortie standard (stdout):")
@@ -292,6 +295,10 @@ def main():
         .stSidebar > div > div {
             color: #FFFFFF !important; 
         }
+        /* Style pour centrer l'image native st.image */
+        [data-testid="stImage"] {
+            text-align: center;
+        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -311,14 +318,14 @@ def main():
         # fallback : cherche n'importe quel .gif dans le dossier (case-insensitive)
         if os.path.isdir(assets_dir):
             for f in os.listdir(assets_dir):
-                if f.lower().endswith(".GIF"):
+                if f.lower().endswith(".gif"): # Corrigé: utiliser .gif en minuscule pour la comparaison
                     return os.path.join(assets_dir, f)
         return None
 
     with col_content:
         gif_path = _find_banner_path()
 
-        # Injection du style CSS
+        # Injection du style CSS pour la bannière
         st.markdown(
             """
             <style>
@@ -333,42 +340,28 @@ def main():
                     border-radius: 8px;
                 }
 
-                .banner-container img {
+                /* Styles pour l'image générée par st.image */
+                .stImage > img {
                     max-width: 100%;
                     height: auto;
                     max-height: 160px;
                     border-radius: 6px;
                 }
-
-                /* --- OPTION STICKY (décommente pour fixer la bannière) ---
-                .banner-container {
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    background-color: #0e0e14;
-                    z-index: 9999;
-                    padding: 6px 0;
-                    box-shadow: 0px 4px 8px rgba(0,0,0,0.3);
-                }
-                body {
-                    margin-top: 180px;
-                }
-                */
             </style>
             """,
             unsafe_allow_html=True
         )
 
         if gif_path and os.path.exists(gif_path):
-            st.markdown(
-                f"""
-                <div class="banner-container">
-                    <img src="{gif_path}" alt="Bannière animée TROPIC 🌴 by Karim" title="TROPIC 🌴 by Karim">
-                </div>
-                """,
-                unsafe_allow_html=True
+            # ✅ CORRECTION: Utilisation de st.image() pour un chemin de fichier local fiable
+            st.markdown('<div class="banner-container">', unsafe_allow_html=True)
+            st.image(
+                gif_path, 
+                caption=None, 
+                use_column_width="auto",
+                output_format="GIF" # Assure un rendu GIF si l'extension n'est pas claire
             )
+            st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.warning("⚠️ Bannière introuvable : place ton fichier GIF dans streamlit/assets/ (ex: banner.gif)")
 
@@ -414,14 +407,14 @@ def main():
         if 'module3_running' not in st.session_state:
             st.session_state['module3_running'] = False
             
-        # ✅ Clés nécessaires pour la console PoC 
+        # ✅ Clés nécessaires pour la console PoC (ancienne clé supprimée et remplacée par les nouvelles préfixées)
         if 'shell_cmd_history' in st.session_state:
             del st.session_state['shell_cmd_history']
             
         if 'shell_cmd_history_list' not in st.session_state:
-            st.session_state['shell_cmd_history_list'] = [] 
+            st.session_state['shell_cmd_history_list'] = [] # Ancienne clé maintenue pour rétrocompatibilité dans le code utilisateur s'il existe
         if 'current_shell_command_input' not in st.session_state:
-            st.session_state['current_shell_command_input'] = ""
+            st.session_state['current_shell_command_input'] = "" # Ancienne clé maintenue pour rétrocompatibilité
 
         # --- AFFICHAGE DU SCOPE ---
         st.markdown(f"**🎯 Objectif du Test :** _{user_config['pentest_goal']}_")
@@ -467,10 +460,18 @@ def main():
 
             # 2. MODULE API SCAN
             if run_api_module:
-                if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
-                    st.warning("⏩ Skipping Module 2 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
-                    scan_successful = False # Marquer un échec partiel
-                else:
+                # La vérification de dépendance est plus logique ici si le Module 1 a été explicitement ignoré
+                if run_all and not run_recon_module:
+                    pass # Si run_all est coché, on assume que run_recon_module est True et a échoué s'il manque le fichier
+                elif not run_all and not run_recon_module:
+                    # Si on ne run pas tout et que M2 est lancé seul, on doit vérifier la dépendance
+                    if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
+                         st.warning("⏩ Skipping Module 2 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
+                         scan_successful = False
+                         pass
+                
+                # Exécution réelle si la vérification de dépendance n'a pas causé un "pass"
+                if scan_successful:
                     with placeholder.status(f"Module 2: Exécution de l'Analyse API/Headers...", expanded=True) as status:
                         log, time_elapsed = execute_and_capture(run_api_scan, target_domain, user_config, module_name="Module 2")
                         all_logs.append(f"\n--- LOGS MODULE 2 ({time_elapsed:.2f}s) ---\n" + log)
@@ -480,10 +481,16 @@ def main():
 
             # 3. MODULE VULN SCAN (Exploit_Adv.py) - LOGS EN TEMPS RÉEL (PERSISTENT)
             if run_vuln_module:
-                if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
-                    st.warning("⏩ Skipping Module 3 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
-                    scan_successful = False # Marquer un échec partiel
-                else:
+                # La vérification de dépendance est faite ici aussi.
+                if run_all and not run_recon_module:
+                    pass
+                elif not run_all and not run_recon_module:
+                    if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
+                         st.warning("⏩ Skipping Module 3 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
+                         scan_successful = False
+                         pass
+
+                if scan_successful:
                     
                     st.subheader("💻 Terminal d'Exploitation en Temps Réel (Logs)")
                     
@@ -569,10 +576,10 @@ def main():
             
             # Effets de fin après l'exécution de tous les modules
             if scan_successful:
-                st.balloons() # ✅ CORRECTION: st.confetti() remplacé par st.balloons()
+                st.balloons() 
                 st.toast("Analyse complète terminée avec succès ! 🚀", icon='✅')
             else:
-                st.snow() # Neige/Échec pour une exécution incomplète ou avec erreurs critiques
+                st.snow() 
                 st.toast("Analyse terminée avec des avertissements/erreurs. ⚠️", icon='🚨')
 
         
@@ -658,8 +665,6 @@ def main():
         # Affichage du Log Final
         with st.expander("Voir les Logs d'Exécution Bruts (Multi-Module et Post-Scan)"):
             st.code(''.join(all_logs), language='bash')
-        
-        # st.balloons() a été déplacé dans le bloc IF conditionnel.
 
 # --- BLOC DE LANCEMENT SIMPLIFIÉ ---
 if __name__ == "__main__":
