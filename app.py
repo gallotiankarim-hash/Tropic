@@ -320,7 +320,7 @@ def main():
     # --- CHARGEMENT DE LA CONFIGURATION UTILISATEUR ---
     user_config = load_user_config()
     
-    # ❌ CORRECTION UnboundLocalError: Initialiser all_logs avant tout bloc conditionnel.
+    # ✅ CORRECTION UnboundLocalError: Initialiser all_logs avant tout bloc conditionnel.
     all_logs = [] 
 
     # --------------------------------------------------------------------------
@@ -379,8 +379,6 @@ def main():
 
         os.makedirs("output", exist_ok=True)
         placeholder = st.empty()
-        # all_logs = [] <-- La définition a été déplacée plus haut (Ligne 341) pour correction
-
         
         # 1. MODULE DE RECONNAISSANCE
         if run_recon_module:
@@ -571,7 +569,7 @@ def main():
 
     # Affichage du Log Final
     with st.expander("Voir les Logs d'Exécution Bruts (Multi-Module et Post-Scan)"):
-        # L'utilisation de all_logs est maintenant sécurisée, car elle est initialisée au début de main()
+        # L'utilisation de all_logs est maintenant sécurisée
         st.code(''.join(all_logs), language='bash')
     
     st.balloons()
