@@ -213,107 +213,54 @@ def display_vuln_scan_report(target):
 # Fonction pour l'interface du Shell Simulé (Console de Diagnostic Actif)
 def display_active_diagnostic_console(target, user_config):
     """
-    Console PoC robuste — utilise un st.form pour éviter les reruns intempestifs
-    et conserve l'historique dans st.session_state.shell_cmd_history.
+    Console PoC robuste — persistance garantie, sans éjection.
     """
+    st.header(f"💻 Console PoC Actif - {target}")
+    st.warning("⚠️ Utilisez uniquement sur des cibles autorisées.")
 
-    st.header("💻 Console de Diagnostic Actif (PoC)")
-    st.warning(
-        "⚠️ ATTENTION : La **Console de Diagnostic Actif** envoie des charges utiles spécifiques. "
-        "N'utilisez cette console que sur des cibles pour lesquelles vous avez un consentement **écrit**."
-    )
+    # Initialisation persistante
+    history_key = f"shell_cmd_history_{target}"
+    if history_key not in st.session_state:
+        st.session_state[history_key] = ""
 
-    # --- INITIALISATION DES VARIABLES D'ÉTAT (sécurisé) ---
-    if 'shell_cmd_history' not in st.session_state:
-        st.session_state['shell_cmd_history'] = ""
-    if 'last_poc_status' not in st.session_state:
-        st.session_state['last_poc_status'] = None
-    if 'last_poc_time' not in st.session_state:
-        st.session_state['last_poc_time'] = None
-
-    # --- AFFICHAGE DE L'HISTORIQUE (toujours présent, persistant) ---
-    st.markdown("**Historique d'exécution (persistant)**")
-    # On affiche toujours l'historique en haut de la console pour que l'utilisateur reste dans le contexte
+    # Affichage de l'historique
     history_container = st.empty()
-    history_text = st.session_state.get('shell_cmd_history', "")
-    history_container.code(history_text if history_text else "Aucun historique. Lancez un PoC sûr (ex: `echo TEST PoC`).", language='bash')
+    history_text = st.session_state[history_key]
+    history_container.code(history_text if history_text else "Historique vide. Tapez une commande.", language='bash')
 
-    st.markdown("---")
-
-    # --- FORMULAIRE D'EXÉCUTION (évite on_change) ---
+    # Formulaire pour input de commande
     form_key = f"poc_form_{target}"
     with st.form(key=form_key, clear_on_submit=False):
-        cmd = st.text_input(f"tropic@{target}:~# ", value="", key=f"poc_input_{target}", label_visibility="collapsed")
+        cmd = st.text_input("tropic@{}:~#".format(target), key=f"poc_input_{target}", label_visibility="collapsed")
         submit = st.form_submit_button("Exécuter PoC")
 
-        # Execution happens after the form (on submit)
         if submit:
             command = (cmd or "").strip()
-            # Ensure the input field is cleared after processing without killing session context
-            # We'll clear by writing empty string into session_state key after execution below.
-
             if not command:
-                # Nothing to do, but keep the UI stable
-                st.warning("Aucune commande fournie.")
+                st.warning("Aucune commande saisie.")
             else:
-                # --- PREP: determine force_real flag from user_config (boolean)
                 force_real = bool(user_config.get('allow_real_poc', True))
-
-                # Execute and capture output safely
-                new_output = ""
-                status_code = 500
                 try:
-                    # Try calling with force_real argument (preferred)
-                    try:
-                        new_output, status_code = simulate_poc_execution(target, command, force_real=force_real)
-                    except TypeError:
-                        # Fallback to older signature (backwards compatibility)
-                        new_output, status_code = simulate_poc_execution(target, command)
+                    output, status_code = simulate_poc_execution(target, command, force_real=force_real)
                 except Exception as e:
-                    new_output = f"ERREUR D'EXÉCUTION DU PoC: {str(e)}"
-                    status_code = 500
+                    output, status_code = f"ERREUR : {str(e)}", 500
 
-                # Format timestamp
+                # Ajout à l'historique
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                entry = f"[{timestamp}] tropic@{target}:~# {command}\nSTATUT : {status_code}\n{output}\n\n"
+                st.session_state[history_key] += entry
 
-                # Append to persistent history in a way that survives reruns
-                entry = f"[{timestamp}] tropic@{target}:~# {command}\nSTATUT HTTP : {status_code}\n{new_output}\n\n"
-                st.session_state['shell_cmd_history'] = (st.session_state.get('shell_cmd_history', "") + entry).strip()
+                # Mise à jour de l'affichage
+                history_container.code(st.session_state[history_key], language='bash')
 
-                # Save last status/time for UI badges if needed
-                st.session_state['last_poc_status'] = status_code
-                st.session_state['last_poc_time'] = timestamp
-
-                # Clear the input in the session_state to empty the form field for next command
-                # Use the exact key used for the text_input
+                # Clear input pour la prochaine commande
                 st.session_state[f"poc_input_{target}"] = ""
 
-                # Immediately update the visible history container (no race)
-                history_container.code(st.session_state['shell_cmd_history'], language='bash')
-
-                # Provide a short notification to the user
+                # Notification rapide
                 if status_code == 200:
-                    st.success(f"Commande exécutée (HTTP {status_code}). Résultat ajouté à l'historique.")
-                elif status_code == 401:
-                    st.error("Accès refusé (Ethics lock) — exécution bloquée.")
-                elif status_code == 408:
-                    st.error("La commande a expiré (timeout).")
-                elif status_code == 404:
-                    st.error("Commande introuvable.")
+                    st.success(f"Commande exécutée avec succès (HTTP {status_code}).")
                 else:
                     st.warning(f"Commande terminée avec statut {status_code}.")
-
-    # --- AFFICHAGE D'UN PETIT RÉCAP / MÉTADONNÉES POUR LA CONSOLE ---
-    meta_col1, meta_col2 = st.columns([1, 3])
-    with meta_col1:
-        st.markdown("**Dernier statut**")
-        st.write(st.session_state.get('last_poc_status', "N/A"))
-    with meta_col2:
-        st.markdown("**Dernier appel**")
-        st.write(st.session_state.get('last_poc_time', "N/A"))
-
-    # Remarque : nous n'utilisons PAS on_change; nous utilisons un formulaire submit, ce qui
-    # évite des reruns imprévus qui repositionnaient l'UI et provoquaient l'éjection.
         
     
     # --- HANDLER D'EXÉCUTION (POUR LE CALLBACK DU BOUTON) ---
