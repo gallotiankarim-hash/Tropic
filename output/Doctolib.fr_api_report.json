@@ -1,9 +1,0 @@
-{
-    "metadata": {
-        "target_domain": "Doctolib.fr",
-        "scanner": "TROPIC API/HEADER Analyzer (v2.3)",
-        "injections_detected": 0,
-        "reflections_detected": 0
-    },
-    "scan_results": []
-}
