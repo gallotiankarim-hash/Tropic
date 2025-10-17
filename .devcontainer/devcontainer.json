@@ -1,19 +1,18 @@
 // .devcontainer/devcontainer.json
 {
-    // Utiliser l'image de base que tu utilises
+    // Utilise l'image de base (Universal Image)
     "image": "mcr.microsoft.com/devcontainers/universal:latest",
 
-    // Bloquer explicitement toutes les features par défaut
-    // (LFS, Node, etc.) si elles ne sont pas nécessaires.
+    // Bloque explicitement toutes les features par défaut (comme Git LFS)
     "features": {},
 
-    // S'assurer qu'aucune commande post-création n'est définie
-    "postCreateCommand": null,
-
-    // Définir le répertoire de travail
+    // Définit le répertoire de travail standard de Codespaces
     "workspaceFolder": "/workspaces/${localWorkspaceFolder}",
 
-    // [ACTION RECOMMANDÉE] Installer tes dépendances ici
-    // Cette commande s'exécutera APRÈS la création du conteneur.
+    // Définit l'utilisateur non-root par défaut
+    "remoteUser": "codespace",
+
+    // [ACTION D'INSTALLATION] Exécute la commande après la création du conteneur.
+    // L'installation de ces paquets rendra 'streamlit' disponible dans le terminal.
     "postCreateCommand": "pip install streamlit pandas requests" 
 }
