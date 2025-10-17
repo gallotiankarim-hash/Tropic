@@ -76,7 +76,6 @@ def http_probe_check(url, output_lines, http_timeout, user_agent):
 
         # Ajoute des détails si des redirections ont eu lieu
         if response.history:
-            # Note: response.history contient la liste des objets Response ayant mené à l'état final
             log_detail = f"Redirected {len(response.history)} time(s). Final Status {status}. URL Finale: {final_url}"
         
         # Capture du corps de la réponse pour les statuts critiques
