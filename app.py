@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE TROPIC PRO - CONSOLE DE DIAGNOSTIC ACTIF)
+# app.py (VERSION FINALE TROPIC PRO - CONSOLE DE DIAGNOSTIC ACTIF + AUTO-LAUNCH)
 import streamlit as st
 import pandas as pd
 import json
@@ -12,10 +12,12 @@ import subprocess
 try:
     from Recon import run_recon
     from Api_scan import run_api_scan, SECURITY_SCORE_WEIGHTS
-    # Le module 3 est maintenant Exploit_Adv.py
+    # Le module 3 est Exploit_Adv.py
     from Exploit_Adv import run_vulnerability_scan, simulate_poc_execution 
 except ImportError as e:
-    st.error(f"Erreur d'importation : Assurez-vous que 'Recon.py', 'Api_scan.py', et 'Exploit_Adv.py' sont dans le même répertoire que app.py. ({e})")
+    # Si l'importation échoue ici, nous n'affichons qu'un message d'erreur simple
+    # car les fonctions d'erreur de Streamlit ne sont pas encore prêtes.
+    print(f"FATAL ERROR: Failed to import security modules. Ensure Recon.py, Api_scan.py, and Exploit_Adv.py exist. Details: {e}")
     sys.exit(1)
 
 # ===============================================================================
@@ -186,7 +188,7 @@ def display_vuln_scan_report(target):
     else:
         st.info("Aucune vulnérabilité n'a été trouvée.")
 
-# Fonction pour l'interface du Shell Simulé (renommée)
+# Fonction pour l'interface du Shell Simulé (Console de Diagnostic Actif)
 def display_active_diagnostic_console(target):
     st.header("💻 Console de Diagnostic Actif (PoC)")
     st.warning("⚠️ ATTENTION : La **Console de Diagnostic Actif** envoie des charges utiles spécifiques. N'utilisez cette console que sur des cibles pour lesquelles vous avez un consentement **écrit**.")
@@ -303,7 +305,7 @@ def main():
     st.title("TROPIC 🌴")
     
     # Intégration de la mention "By Karim"
-    st.markdown("Développé et maintenu par **Karim93160**. | Outil de sécurité complet en 3 phases, incluant un exécuteur de commandes post-scan.")
+    st.markdown("Développé et maintenu par **Karim**. | Outil de sécurité complet en 3 phases, incluant un exécuteur de commandes post-scan.")
 
     # AVERTISSEMENT RED FLAG MASSIF
     st.markdown("""
@@ -442,4 +444,28 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # --- SOLUTION DE L'ERREUR 'Command not found' ---
+    
+    # 1. Installe les dépendances via pip
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+    except Exception as e:
+        # Tente l'installation sans requirements.txt s'il échoue (juste au cas où)
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "streamlit", "pandas", "requests"])
+    
+    # 2. Lance Streamlit en utilisant l'exécutable Python (méthode la plus fiable)
+    print("\nAttempting to launch Streamlit application via python -m streamlit...")
+    
+    try:
+        subprocess.run(
+            [
+                sys.executable, "-m", "streamlit", "run", "app.py",
+                "--server.port", "8501", 
+                "--server.address", "0.0.0.0"
+            ],
+            check=True
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"CRITICAL ERROR: Streamlit execution failed. The command 'streamlit run' could not be executed.")
+        print("Please check if the Code Space environment has sufficient permissions or dependencies.")
+        sys.exit(1)
