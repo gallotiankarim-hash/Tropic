@@ -20,7 +20,8 @@ except ImportError as e:
     def placeholder_func(*args, **kwargs):
         if kwargs.get('command'):
             return f"ERREUR CRITIQUE: Le module de sécurité est manquant. Détails: {e}", 500
-        raise ImportError(f"FATAL ERROR: Security module missing or misnamed. Details: {e}")
+        # Pour les fonctions de scan, on lève l'exception si on tente de les appeler sans 'command'
+        raise ImportError(f"FATAL ERROR: Security module missing or misnamed. Details: {e}") 
     run_recon = run_api_scan = run_vulnerability_scan = simulate_poc_execution = placeholder_func
     SECURITY_SCORE_WEIGHTS = {'ENDPOINT_EXPOSED': 15, 'INJECTION_VULNERABLE': 30, 'PARAM_REFLECTION': 10}
 
@@ -133,7 +134,7 @@ def display_recon_report(target):
     if os.path.exists(active_file):
         with open(active_file, 'r') as f:
             subdomains = [line.strip() for line in f if line.strip()]
-        st.success(f"**{len(subdomains)}** sous-domaines actifs trouvés et enregistrés.")
+        st.success(f"**{len(subdomains)}** sous-domains actifs trouvés et enregistrés.")
         df = pd.DataFrame(subdomains, columns=['Sous-Domaine Actif'])
         st.dataframe(df, use_container_width=True)
     else:
@@ -213,100 +214,46 @@ def display_vuln_scan_report(target):
 # Fonction pour l'interface du Shell Simulé (Console de Diagnostic Actif)
 def display_active_diagnostic_console(target, user_config):
     """
-    Console PoC robuste — persistance garantie, sans éjection.
+    Console PoC robuste — utilise st.session_state et un callback pour la persistance.
     """
     st.header(f"💻 Console PoC Actif - {target}")
     st.warning("⚠️ Utilisez uniquement sur des cibles autorisées.")
 
-    # Initialisation persistante
-    history_key = f"shell_cmd_history_{target}"
-    if history_key not in st.session_state:
-        st.session_state[history_key] = ""
-
-    # Affichage de l'historique
-    history_container = st.empty()
-    history_text = st.session_state[history_key]
-    history_container.code(history_text if history_text else "Historique vide. Tapez une commande.", language='bash')
-
-    # Formulaire pour input de commande
-    form_key = f"poc_form_{target}"
-    with st.form(key=form_key, clear_on_submit=False):
-        cmd = st.text_input("tropic@{}:~#".format(target), key=f"poc_input_{target}", label_visibility="collapsed")
-        submit = st.form_submit_button("Exécuter PoC")
-
-        if submit:
-            command = (cmd or "").strip()
-            if not command:
-                st.warning("Aucune commande saisie.")
-            else:
-                force_real = bool(user_config.get('allow_real_poc', True))
-                try:
-                    output, status_code = simulate_poc_execution(target, command, force_real=force_real)
-                except Exception as e:
-                    output, status_code = f"ERREUR : {str(e)}", 500
-
-                # Ajout à l'historique
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                entry = f"[{timestamp}] tropic@{target}:~# {command}\nSTATUT : {status_code}\n{output}\n\n"
-                st.session_state[history_key] += entry
-
-                # Mise à jour de l'affichage
-                history_container.code(st.session_state[history_key], language='bash')
-
-                # Clear input pour la prochaine commande
-                st.session_state[f"poc_input_{target}"] = ""
-
-                # Notification rapide
-                if status_code == 200:
-                    st.success(f"Commande exécutée avec succès (HTTP {status_code}).")
-                else:
-                    st.warning(f"Commande terminée avec statut {status_code}.")
-        
+    # Les clés shell_cmd_history et current_shell_command_input sont initialisées dans main().
     
-    # --- HANDLER D'EXÉCUTION (POUR LE CALLBACK DU BOUTON) ---
+    # --- HANDLER D'EXÉCUTION (POUR LE CALLBACK DU BOUTON/ENTRÉE) ---
     def execute_shell_command():
         """Exécute la commande PoC et met à jour l'historique directement via la session state."""
         
-        # Récupère la commande saisie via sa clé (avant que le champ ne soit vidé)
+        # Récupère la commande saisie via sa clé
         command = st.session_state.current_shell_command_input.strip()
         
         if not command:
-            return # Ne rien faire si la commande est vide
+            # Vider le champ d'entrée même si vide
+            st.session_state.current_shell_command_input = "" 
+            return 
 
         new_output = ""
         status_code = 500
         
         # --- BLOC D'EXÉCUTION DU PoC (avec gestion des erreurs) ---
         try:
-            # Exécution du PoC (via le Module 3)
-            # Utilisation du PoC SIMULÉ/RÉEL (selon le verrou éthique dans Exploit_Adv.py)
-            # Ici on lit explicitement le flag depuis user_config passé par main()
             force_real = bool(user_config.get('allow_real_poc', True))
-            # Passe le flag force_real à la fonction (ATTENTION: Exploit_Adv.simulate_poc_execution doit accepter ce paramètre)
+            # Exécution du PoC (via le Module 3)
             new_output, status_code = simulate_poc_execution(target, command, force_real=force_real)
-        except ImportError:
-            new_output = "ERREUR CRITIQUE: Le module Exploit_Adv.py ou la fonction simulate_poc_execution est manquant(e)."
-            status_code = 500
-        except TypeError:
-            # Cas où simulate_poc_execution n'accepte pas encore le paramètre force_real :
-            # On retente l'appel historique (compatibilité descendante)
-            try:
-                new_output, status_code = simulate_poc_execution(target, command)
-            except Exception as e:
-                new_output = f"ERREUR D'EXÉCUTION DU PoC (fallback failed): {str(e)}"
-                status_code = 500
         except Exception as e:
-            new_output = f"ERREUR D'EXÉCUTION DU PoC: {str(e)}"
+            # Gestion des erreurs d'importation, de type ou autres
+            new_output = f"ERREUR CRITIQUE D'EXÉCUTION: {str(e)}"
             status_code = 500
         
         # Construit le nouveau contenu pour l'affichage (ajoute la commande et la sortie)
-        st.session_state.shell_cmd_history += f"tropic@{target}:~# {command}\n"
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.shell_cmd_history += f"[{timestamp}] tropic@{target}:~# {command}\n"
         st.session_state.shell_cmd_history += f"STATUT HTTP : {status_code}\n"
         st.session_state.shell_cmd_history += new_output + "\n\n"
         
         # Pour vider visuellement le champ de saisie après l'exécution
         st.session_state.current_shell_command_input = "" 
-        # Streamlit re-runnera automatiquement, affichant le nouvel historique.
 
 
     # --- INTERFACE DE COMMANDE ---
@@ -333,7 +280,15 @@ def display_active_diagnostic_console(target, user_config):
 
     # Affichage de la Console
     st.markdown("---")
-    st.code(st.session_state.shell_cmd_history if st.session_state.shell_cmd_history else "Tapez 'id' ou 'ls' pour tester l'accès (PoC) et appuyez sur ENTRÉE ou cliquez sur 'Exécuter PoC'.", language='bash')
+    # L'accès direct corrigé à la clé initialisée
+    # Correction de l'erreur ici : on s'assure que shell_cmd_history est dans le state (initialisé dans main)
+    st.code(
+        st.session_state.shell_cmd_history 
+        if st.session_state.shell_cmd_history 
+        else "Tapez 'id' ou 'ls' pour tester l'accès (PoC) et appuyez sur ENTRÉE ou cliquez sur 'Exécuter PoC'.", 
+        language='bash'
+    )
+
 
 # ===============================================================================
 #                             INTERFACE PRINCIPALE
@@ -442,7 +397,7 @@ def main():
     # --- CHARGEMENT DE LA CONFIGURATION UTILISATEUR ---
     user_config = load_user_config()
 
-    # --- PERSISTANCE SESSION_STATE (Module 3) ---
+    # --- PERSISTANCE SESSION_STATE (Module 3 & Console PoC) ---
     # Initialise les clés nécessaires pour éviter l'éjection de la console PoC après un rerun
     if 'module3_logs' not in st.session_state:
         st.session_state['module3_logs'] = ""
@@ -452,6 +407,12 @@ def main():
         st.session_state['module3_run_id'] = None
     if 'module3_running' not in st.session_state:
         st.session_state['module3_running'] = False
+        
+    # 🔥 CORRECTION 🔥 : Initialisation pour la console de diagnostic active (PoC)
+    if 'shell_cmd_history' not in st.session_state:
+        st.session_state['shell_cmd_history'] = ""
+    if 'current_shell_command_input' not in st.session_state:
+        st.session_state['current_shell_command_input'] = ""
 
     # --- AFFICHAGE DU SCOPE ---
     st.markdown(f"**🎯 Objectif du Test :** _{user_config['pentest_goal']}_")
@@ -529,7 +490,7 @@ def main():
                         run_vuln_module = True
 
                 # Si on a déjà un log final sauvegardé POUR CETTE CIBLE, on l'affiche (persistant entre reruns)
-                if st.session_state.get('module3_run_id') == target_domain and st.session_state.get('module3_logs'):
+                if st.session_state.get('module3_run_id') == target_domain and st.session_state.get('module3_logs') and not st.session_state.get('module3_running'):
                     elapsed = st.session_state.get('module3_elapsed', 0.0)
                     st.success(f"Module 3 : Dernier scan pour {target_domain} (terminé en {elapsed:.2f}s).")
                     st.code(st.session_state['module3_logs'], language='bash')
@@ -623,7 +584,6 @@ def main():
         
         # 5. CONSOLE DE DIAGNOSTIC ACTIF
         st.markdown("---")
-        # NOTE : Cette fonction utilise maintenant un on_click callback pour l'exécution
         # On passe user_config pour que la console sache si l'on force l'exécution réelle
         display_active_diagnostic_console(target_domain, user_config)
         
