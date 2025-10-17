@@ -484,10 +484,49 @@ def main():
                 status.update(label=f"✅ Commande Post-Scan terminée", state="complete", expanded=False)
 
         
-        # 5. CONSOLE DE DIAGNOSTIC ACTIF
-        st.markdown("---")
-        # 🔥 Appel du module externe de console pour l'interface fluide 🔥
+# ============================
+# 5. CONSOLE PoC (external)
+# ============================
+st.markdown("---")
+
+# --- Prépare les clefs session_state dédiées à la console PoC pour éviter collisions ---
+# (Nommer explicitement avec 'poc_' pour ne pas écraser d'autres états)
+if 'poc_shell_cmd_history_list' not in st.session_state:
+    st.session_state['poc_shell_cmd_history_list'] = []
+if 'poc_current_shell_command_input' not in st.session_state:
+    st.session_state['poc_current_shell_command_input'] = ""
+if 'poc_last_status' not in st.session_state:
+    st.session_state['poc_last_status'] = None
+if 'poc_last_time' not in st.session_state:
+    st.session_state['poc_last_time'] = None
+if 'poc_max_history' not in st.session_state:
+    st.session_state['poc_max_history'] = 500  # limite raisonnable pour la perf
+
+# --- Import et appel de la console PoC externe ---
+try:
+    # Import local (try/except pour robustesse si fichier manquant)
+    from poc_console import render_poc_console
+except Exception as e:
+    st.error(f"Impossible de charger poc_console.py : {e}")
+    st.info("La console PoC est indisponible. Vérifiez que poc_console.py est dans le même dossier et qu'elle expose render_poc_console(target, user_config).")
+else:
+    # Appel : passe la cible et la configuration utilisateur
+    try:
+        # NOTE: render_poc_console doit utiliser ses propres clefs st.session_state (préfixées 'poc_')
         render_poc_console(target_domain, user_config)
+    except Exception as e:
+        st.error(f"Erreur lors de l'exécution de la console PoC : {e}")
+        # Affiche le traceback léger si débogage activé
+        try:
+            import traceback
+            tb = traceback.format_exc()
+            st.text("Traceback (debug):")
+            st.text(tb)
+        except Exception:
+            pass
+
+# Fin de la console PoC
+st.markdown("---")
         
         # Section de Documentation Éthique et Méthodologie
         st.markdown("---")
