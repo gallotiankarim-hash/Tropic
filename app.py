@@ -7,6 +7,7 @@ import sys
 from io import StringIO
 from datetime import datetime
 import subprocess
+import time
 
 # Importation des moteurs d'analyse.
 try:
@@ -15,10 +16,8 @@ try:
     # Le module 3 est Exploit_Adv.py
     from Exploit_Adv import run_vulnerability_scan, simulate_poc_execution 
 except ImportError as e:
-    # Affiche l'erreur si les modules ne sont pas trouvés, mais laisse le script se lancer pour le mode auto-launch
-    # La fonction main gérera l'affichage de l'erreur Streamlit si l'import échoue.
+    # Définit des placeholders si l'importation échoue.
     def placeholder_func(*args, **kwargs):
-        # Pour simuler la signature de la fonction attendue (output, status_code)
         if kwargs.get('command'):
             return f"ERREUR CRITIQUE: Le module de sécurité est manquant. Détails: {e}", 500
         raise ImportError(f"FATAL ERROR: Security module missing or misnamed. Details: {e}")
@@ -30,20 +29,28 @@ except ImportError as e:
 #                             FONCTIONS D'EXECUTION / LOGS
 # ===============================================================================
 
-def execute_and_capture(func, target, config=None):
-    """Exécute une fonction d'analyse et capture son output stdout/logs, en passant la config."""
-    start_time = datetime.now()
-    old_stdout = sys.stdout
-    redirected_output = sys.stdout = StringIO()
-    try:
-        if config:
-            func(target, config)
-        else:
-            func(target)
-    finally:
-        sys.stdout = old_stdout
-    elapsed_time = (datetime.now() - start_time).total_seconds()
-    return redirected_output.getvalue(), elapsed_time
+def execute_and_capture(func, target, config=None, module_name="Module"):
+    """Exécute une fonction d'analyse et capture son output stdout/logs, gérant les générateurs."""
+    
+    # Si la fonction n'est pas un générateur (cas de Recon et API Scan)
+    if module_name != "Module 3": 
+        start_time = datetime.now()
+        old_stdout = sys.stdout
+        redirected_output = sys.stdout = StringIO()
+        try:
+            if config:
+                func(target, config)
+            else:
+                func(target)
+        finally:
+            sys.stdout = old_stdout
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        return redirected_output.getvalue(), elapsed_time
+    
+    # Le Module 3 gère son propre logging en temps réel (voir main())
+    # Cette fonction est principalement pour les modules 1 et 2
+    return "", 0 
+
 
 def execute_post_scan_command(target_domain, command, output_lines):
     """Exécute une commande système fournie par l'utilisateur."""
@@ -276,45 +283,50 @@ def display_active_diagnostic_console(target):
 # ===============================================================================
 
 def main():
-    st.set_page_config(
-        page_title="TROPIC Scanner",
-        layout="wide"
-    )
-
+    
     # 1. INJECTION DU THÈME CYBER/MATRIX (CSS STATIQUE)
-    st.markdown(
-        """
-        <style>
-        /* Force la police monospace partout */
-        body, p, h1, h2, h3, h4, .st-ax, .st-emotion-cache-1c5v44v {
-            font-family: monospace !important;
+    st.markdown("""
+    <style>
+        /* STYLE NÉON POUR LE TITRE PRINCIPAL */
+        .neon {
+          color: #FFFFFF;
+          text-shadow:
+            0 0 7px #00FFFF,
+            0 0 10px #00FFFF,
+            0 0 21px #00FFFF,
+            0 0 42px #0000FF,
+            0 0 82px #0000FF,
+            0 0 92px #0000FF,
+            0 0 102px #0000FF,
+            0 0 151px #0000FF;
+          font-family: 'Monospace', monospace; /* Police de style terminal */
+          text-transform: uppercase;
+          font-size: 3em; 
+        }
+
+        /* AMÉLIORATION DE LA BARRE LATÉRALE (SIDEBAR) */
+        [data-testid="stSidebar"] {
+            background-color: #1A1A2E; 
+            color: #00FFFF;
+            box-shadow: 0 0 10px #00FFFF33; 
         }
         
-        /* FOND STATIQUE DE STYLE GRID */
-        .main {
-            background-image: radial-gradient(rgba(0, 196, 0, 0.1) 1px, transparent 0);
-            background-size: 40px 40px;
-            background-color: #0d1117; 
+        /* Modification des boutons pour un style plus agressif */
+        .stButton>button {
+            background-color: #00FFFF;
+            color: #0E1117; 
+            border: 2px solid #00FFFF;
+            box-shadow: 0 0 8px #00FFFF;
+            transition: all 0.3s ease;
         }
-
-        /* Titre principal (H1) avec effet néon/glow vert */
-        .st-emotion-cache-10trblm {
-            text-shadow: 0 0 10px #00c400, 0 0 20px #00c400;
-            color: #90ff83;
+        .stButton>button:hover {
+            background-color: #000000;
+            color: #00FFFF;
+            box-shadow: 0 0 15px #00FFFF;
+            border-color: #00FFFF;
         }
-
-        /* Style pour les blocs de code et Logs (effet Terminal) */
-        .stCode {
-            background-color: #0c0c0c !important;
-            color: #00ff00 !important;
-            border: 1px solid #00ff00;
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.7);
-            padding: 15px;
-            font-size: 14px;
-            overflow-x: auto;
-        }
-
-        /* AVERTISSEMENT RED FLAG - Fond et Bordure Rouge Vif */
+        
+        /* AVERTISSEMENT RED FLAG */
         .red-flag-box {
             background-color: #330000 !important; 
             border: 3px solid #ff0000 !important; 
@@ -325,26 +337,12 @@ def main():
         .red-flag-box p {
             color: #ff9999 !important;
         }
-
-        /* Modifie l'apparence des alertes WARNING pour un look "terminal jaune" */
-        .stAlert p {
-            font-family: monospace !important;
-        }
-        .stAlert [data-testid="stAlert"] {
-            border-left: 6px solid #ffcc00 !important;
-            background-color: #2e2e00 !important;
-            color: #ffcc00 !important;
-        }
-        
-        </style>
-        """, 
-        unsafe_allow_html=True
-    )
+    </style>
+    """, unsafe_allow_html=True)
     
-    st.title("TROPIC :: Multi-Module Security Analyzer 🌴")
-    
-    # Intégration de la mention "By Karim"
-    st.markdown("Développé et maintenu par **Karim**. | Outil de sécurité complet en 3 phases, incluant un exécuteur de commandes post-scan.")
+    # Titre Néon
+    st.markdown('<h1 class="neon">TROPIC 🌴 by Karim</h1>', unsafe_allow_html=True)
+    st.markdown("Outil de sécurité complet en 3 phases, incluant un exécuteur de commandes post-scan.")
 
     # AVERTISSEMENT RED FLAG MASSIF
     st.markdown("""
@@ -369,7 +367,7 @@ def main():
     st.markdown("---")
 
     # --- INPUT DOMAIN ---
-    target_domain = st.text_input("Domaine Cible (Ex: example.com)", value="votrecible.com")
+    target_domain = st.text_input("Domaine Cible (Ex: example.com)", value="example.com")
     st.markdown("---")
 
     # --- SÉLECTION DES MODULES ---
@@ -400,10 +398,10 @@ def main():
         
         # 1. MODULE DE RECONNAISSANCE
         if run_recon_module:
-            with placeholder.status(f"Module 1: Exécution de la Reconnaissance sur **{target_domain}**... (1500+ actions)", expanded=True) as status:
-                log, time = execute_and_capture(run_recon, target_domain, user_config) 
-                all_logs.append(f"\n--- LOGS MODULE 1 ({time:.2f}s) ---\n" + log)
-                status.update(label=f"✅ Module 1 (Recon) terminé en {time:.2f}s", state="complete", expanded=False)
+            with placeholder.status(f"Module 1: Exécution de la Reconnaissance sur **{target_domain}**...", expanded=True) as status:
+                log, time_elapsed = execute_and_capture(run_recon, target_domain, user_config, module_name="Module 1") 
+                all_logs.append(f"\n--- LOGS MODULE 1 ({time_elapsed:.2f}s) ---\n" + log)
+                status.update(label=f"✅ Module 1 (Recon) terminé en {time_elapsed:.2f}s", state="complete", expanded=False)
             display_recon_report(target_domain)
             st.markdown("---")
 
@@ -413,21 +411,53 @@ def main():
                 st.warning("⏩ Skipping Module 2 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
             else:
                 with placeholder.status(f"Module 2: Exécution de l'Analyse API/Headers...", expanded=True) as status:
-                    log, time = execute_and_capture(run_api_scan, target_domain, user_config)
-                    all_logs.append(f"\n--- LOGS MODULE 2 ({time:.2f}s) ---\n" + log)
-                    status.update(label=f"✅ Module 2 (API Scan) terminé en {time:.2f}s", state="complete", expanded=False)
+                    log, time_elapsed = execute_and_capture(run_api_scan, target_domain, user_config, module_name="Module 2")
+                    all_logs.append(f"\n--- LOGS MODULE 2 ({time_elapsed:.2f}s) ---\n" + log)
+                    status.update(label=f"✅ Module 2 (API Scan) terminé en {time_elapsed:.2f}s", state="complete", expanded=False)
                 display_api_scan_report(target_domain)
                 st.markdown("---")
 
-        # 3. MODULE VULN SCAN (Exploit_Adv.py)
+        # 3. MODULE VULN SCAN (Exploit_Adv.py) - LOGS EN TEMPS RÉEL
         if run_vuln_module:
             if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
                 st.warning("⏩ Skipping Module 3 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
             else:
-                with placeholder.status(f"Module 3: Exécution du Scan de Vulnérabilités...", expanded=True) as status:
-                    log, time = execute_and_capture(run_vulnerability_scan, target_domain, user_config)
-                    all_logs.append(f"\n--- LOGS MODULE 3 ({time:.2f}s) ---\n" + log)
-                    status.update(label=f"✅ Module 3 (Vuln Scan) terminé en {time:.2f}s", state="complete", expanded=False)
+                st.subheader("🔴 Terminal d'Exploitation en Temps Réel (Logs)")
+                
+                # Conteneur de la barre de progression
+                progress_bar = st.progress(0, text="Initialisation...")
+                
+                # Conteneur des logs
+                log_area = st.empty() 
+                full_log_text = ""
+                
+                start_time = datetime.now()
+                
+                # Appel du générateur de scan
+                scan_generator = run_vulnerability_scan(target_domain, user_config)
+                
+                for log_line in scan_generator:
+                    
+                    # Détection de l'état d'avancement du générateur
+                    if log_line.startswith("[STATE]"):
+                        try:
+                            # Format: [STATE] 5/50
+                            completed, total = map(int, log_line.split(" ")[1].split('/'))
+                            percent_complete = completed / total
+                            progress_bar.progress(percent_complete, text=f"Scanning {completed}/{total} cibles...")
+                        except Exception:
+                            pass
+                    
+                    # Affichage du Log normal
+                    else:
+                        full_log_text += f"\n{log_line}"
+                        log_area.code(full_log_text, language='markdown') 
+                        time.sleep(0.05) # Petite pause pour le rafraîchissement Streamlit
+
+                elapsed_time = (datetime.now() - start_time).total_seconds()
+                progress_bar.progress(1.0, text=f"✅ Module 3 (Vuln Scan) terminé en {elapsed_time:.2f}s")
+                all_logs.append(f"\n--- LOGS MODULE 3 ({elapsed_time:.2f}s) ---\n" + full_log_text)
+
                 display_vuln_scan_report(target_domain)
                 st.markdown("---")
         
