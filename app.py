@@ -321,8 +321,8 @@ def main():
         for c in candidates:
             p = os.path.join(assets_dir, c)
             if os.path.exists(p):
-                # Ajout temporaire pour diagnostic: affiche le chemin absolu
-                st.sidebar.info(f"DEBUG PATH: Fichier trouvé: {os.path.abspath(p)}")
+                # Ajout pour diagnostic
+                # st.sidebar.info(f"DEBUG PATH: Fichier trouvé: {os.path.abspath(p)}")
                 return p
         
         # Fallback générique : cherche n'importe quel .gif dans le dossier (case-insensitive)
@@ -330,10 +330,10 @@ def main():
             for f in os.listdir(assets_dir):
                 if f.lower().endswith(".gif"):
                     p = os.path.join(assets_dir, f)
-                    st.sidebar.info(f"DEBUG PATH: Fallback trouvé: {os.path.abspath(p)}")
+                    # st.sidebar.info(f"DEBUG PATH: Fallback trouvé: {os.path.abspath(p)}")
                     return p
         
-        st.sidebar.error(f"DEBUG PATH: Dossier cherché: {os.path.abspath(assets_dir)}")
+        # st.sidebar.error(f"DEBUG PATH: Dossier cherché: {os.path.abspath(assets_dir)}")
         return None
 
     with col_content:
@@ -367,17 +367,17 @@ def main():
         )
 
         if gif_path and os.path.exists(gif_path):
-            # ✅ Utilisation de st.image() avec le chemin corrigé (assets/banner.gif)
             st.markdown('<div class="banner-container">', unsafe_allow_html=True)
             st.image(
                 gif_path, 
                 caption=None, 
-                use_column_width="auto",
-                output_format="GIF" # Assure un rendu GIF si l'extension n'est pas claire
+                # ✅ CORRECTION DE LA DEPRECIATION: Utilisation de use_container_width
+                use_container_width=True, 
+                output_format="GIF" 
             )
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            # 💡 Mise à jour du message d'erreur pour le nouveau chemin
+            # Mise à jour du message d'erreur pour le nouveau chemin
             st.warning("⚠️ Bannière introuvable : place ton fichier GIF (ex: banner.gif) dans le dossier 'assets/' au même niveau que app.py.")
 
         # Titre Néon
