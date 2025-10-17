@@ -504,19 +504,19 @@ if 'poc_max_history' not in st.session_state:
 
 # --- Import et appel de la console PoC externe ---
 try:
-    # Import local (try/except pour robustesse si fichier manquant)
     from poc_console import render_poc_console
 except Exception as e:
     st.error(f"Impossible de charger poc_console.py : {e}")
-    st.info("La console PoC est indisponible. Vérifiez que poc_console.py est dans le même dossier et qu'elle expose render_poc_console(target, user_config).")
+    st.info(
+        "La console PoC est indisponible. "
+        "Vérifiez que poc_console.py est dans le même dossier et qu'elle expose render_poc_console(target, user_config)."
+    )
 else:
-    # Appel : passe la cible et la configuration utilisateur
     try:
         # NOTE: render_poc_console doit utiliser ses propres clefs st.session_state (préfixées 'poc_')
         render_poc_console(target_domain, user_config)
     except Exception as e:
         st.error(f"Erreur lors de l'exécution de la console PoC : {e}")
-        # Affiche le traceback léger si débogage activé
         try:
             import traceback
             tb = traceback.format_exc()
