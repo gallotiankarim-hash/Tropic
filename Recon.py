@@ -59,37 +59,28 @@ def dns_resolution_check(domain, output_lines):
 def http_probe_check(url, output_lines, http_timeout, user_agent):
     """
     Effectue la vérification HTTP/HTTPS complète.
+    Utilise allow_redirects=True pour gérer les chaînes de redirection.
     Retourne (statut, url_finale, corps_reponse_tronqué)
     """
     response_body_snippet = ""
     
     try:
         headers = {'User-Agent': user_agent}
-        response = requests.get(url, headers=headers, timeout=http_timeout, allow_redirects=False)
+        # Utiliser allow_redirects=True pour obtenir directement l'état final
+        response = requests.get(url, headers=headers, timeout=http_timeout, allow_redirects=True) 
         
         status = response.status_code
-        final_url = url
-        log_detail = f"Status {status} at initial URL."
+        final_url = response.url # URL de destination finale
+        
+        log_detail = f"Final Status {status}. URL Finale: {final_url}"
+
+        # Ajoute des détails si des redirections ont eu lieu
+        if response.history:
+            log_detail = f"Redirected {len(response.history)} time(s). Final Status {status}. URL Finale: {final_url}"
         
         # Capture du corps de la réponse pour les statuts critiques
         if status in ALERT_STATUS_CODES:
             response_body_snippet = response.text[:300].replace('\n', ' ').strip() + "..." if response.text else "EMPTY RESPONSE"
-        
-        # Analyse approfondie des redirections
-        if status in [301, 302, 307, 308] and response.headers.get('Location'):
-            redirect_url = response.headers['Location']
-            final_url = redirect_url
-            log_detail = f"Redirected to {final_url}."
-            
-            # Tentative de résolution du statut final après redirection
-            try:
-                final_response = requests.get(redirect_url, headers=headers, timeout=http_timeout)
-                status = final_response.status_code
-                log_detail = f"Redirected to {final_url}, Final Status {status}."
-                if status in ALERT_STATUS_CODES:
-                     response_body_snippet = final_response.text[:300].replace('\n', ' ').strip() + "..." if final_response.text else "EMPTY RESPONSE"
-            except RequestException:
-                pass
         
         output_lines.append(f"[ACTION 2.A] HTTP Probe: {url} -> {log_detail}")
         
