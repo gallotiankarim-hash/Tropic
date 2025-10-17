@@ -308,18 +308,32 @@ def main():
     col_left_spacer, col_content, col_right_spacer = st.columns([1, 6, 1])
 
     def _find_banner_path():
-        """Retourne le chemin du premier .gif trouvé dans streamlit/assets (tolérant à la casse)."""
-        assets_dir = os.path.join("streamlit", "assets")
-        candidates = ["banner.gif", "banner.GIF", "tropic_banner.gif", "tropic_banner.GIF"]
+        """
+        Retourne le chemin du premier .gif trouvé dans le dossier 'assets/' 
+        (qui doit être au même niveau que app.py).
+        """
+        # 💡 CHEMIN CORRIGÉ: Recherche directement dans le dossier 'assets'
+        assets_dir = "assets" 
+        
+        # Testez les candidats en minuscules (meilleure pratique)
+        candidates = ["banner.gif", "tropic_banner.gif"] 
+
         for c in candidates:
             p = os.path.join(assets_dir, c)
             if os.path.exists(p):
+                # Ajout temporaire pour diagnostic: affiche le chemin absolu
+                st.sidebar.info(f"DEBUG PATH: Fichier trouvé: {os.path.abspath(p)}")
                 return p
-        # fallback : cherche n'importe quel .gif dans le dossier (case-insensitive)
+        
+        # Fallback générique : cherche n'importe quel .gif dans le dossier (case-insensitive)
         if os.path.isdir(assets_dir):
             for f in os.listdir(assets_dir):
-                if f.lower().endswith(".gif"): # Corrigé: utiliser .gif en minuscule pour la comparaison
-                    return os.path.join(assets_dir, f)
+                if f.lower().endswith(".gif"):
+                    p = os.path.join(assets_dir, f)
+                    st.sidebar.info(f"DEBUG PATH: Fallback trouvé: {os.path.abspath(p)}")
+                    return p
+        
+        st.sidebar.error(f"DEBUG PATH: Dossier cherché: {os.path.abspath(assets_dir)}")
         return None
 
     with col_content:
@@ -353,7 +367,7 @@ def main():
         )
 
         if gif_path and os.path.exists(gif_path):
-            # ✅ CORRECTION: Utilisation de st.image() pour un chemin de fichier local fiable
+            # ✅ Utilisation de st.image() avec le chemin corrigé (assets/banner.gif)
             st.markdown('<div class="banner-container">', unsafe_allow_html=True)
             st.image(
                 gif_path, 
@@ -363,7 +377,8 @@ def main():
             )
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.warning("⚠️ Bannière introuvable : place ton fichier GIF dans streamlit/assets/ (ex: banner.gif)")
+            # 💡 Mise à jour du message d'erreur pour le nouveau chemin
+            st.warning("⚠️ Bannière introuvable : place ton fichier GIF (ex: banner.gif) dans le dossier 'assets/' au même niveau que app.py.")
 
         # Titre Néon
         st.markdown('<h1 class="neon">TROPIC 🌴 by Karim</h1>', unsafe_allow_html=True)
@@ -462,7 +477,7 @@ def main():
             if run_api_module:
                 # La vérification de dépendance est plus logique ici si le Module 1 a été explicitement ignoré
                 if run_all and not run_recon_module:
-                    pass # Si run_all est coché, on assume que run_recon_module est True et a échoué s'il manque le fichier
+                    pass 
                 elif not run_all and not run_recon_module:
                     # Si on ne run pas tout et que M2 est lancé seul, on doit vérifier la dépendance
                     if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
