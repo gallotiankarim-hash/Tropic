@@ -294,6 +294,69 @@ def main():
         }
     </style>
     """, unsafe_allow_html=True)
+
+# -----------------------------
+# 🎨 BANNIÈRE GIF EN HAUT (avec espacement latéral)
+# -----------------------------
+col_left_spacer, col_content, col_right_spacer = st.columns([1, 6, 1])
+
+with col_content:
+    gif_path = os.path.join("streamlit", "assets", "banner.gif")
+
+    # Injection du style CSS
+    st.markdown(
+        """
+        <style>
+            /* --- BANNIÈRE --- */
+            .banner-container {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                background-color: transparent;
+                margin: 0 auto 16px auto; /* marges centrées + bas */
+                padding: 4px;
+                border-radius: 8px;
+            }
+
+            .banner-container img {
+                max-width: 100%;
+                height: auto;
+                max-height: 160px; /* limite la hauteur */
+                border-radius: 6px;
+            }
+
+            /* --- OPTION STICKY (décommente pour fixer la bannière) ---
+            .banner-container {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                background-color: #0e0e14; 
+                z-index: 9999;
+                padding: 6px 0;
+                box-shadow: 0px 4px 8px rgba(0,0,0,0.3);
+            }
+            body {
+                margin-top: 180px; /* évite de cacher le contenu */
+            }
+            */
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Vérifie la présence du GIF
+    if os.path.exists(gif_path):
+        st.markdown(
+            f"""
+            <div class="banner-container">
+                <img src="{gif_path}" alt="Bannière animée TROPIC 🌴 by Karim" title="TROPIC 🌴 by Karim">
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.warning(f"⚠️ Bannière introuvable : {gif_path} — vérifie que streamlit/assets/banner.gif existe.")
     
     # Titre Néon
     st.markdown('<h1 class="neon">TROPIC 🌴 by Karim</h1>', unsafe_allow_html=True)
