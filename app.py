@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE SANS BUG MAJEUR)
+# app.py (VERSION FINALE AVEC CONSOLE PERSISTANTE ET STATUS) - FORCE REAL POC ENABLED
 import streamlit as st
 import pandas as pd
 import json
@@ -105,12 +105,22 @@ def load_user_config():
     st.sidebar.subheader("🌐 Post-Scan Executor")
     post_scan_command = st.sidebar.text_input("Commande Terminal à Exécuter", value="echo Scan TROPIC terminé pour {TARGET}", help="Sera exécuté après tous les modules.")
     
+    # --- Module 3 explicit force flag (FORCE TRUE by default)
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Module 3 (Exploit / PoC)")
+    allow_real_poc = st.sidebar.checkbox(
+        "Autoriser l'exécution réelle (RCE) depuis la Console PoC (FORCÉ)",
+        value=True,  # DEFAULT = True -> FORCE behavior
+        help="Cochez uniquement si vous avez un consentement explicite et comprenez les risques. Par défaut activé (FORCE)."
+    )
+    
     return {
         "timeout": timeout,
         "use_http_fallback": use_http_fallback,
         "user_agent": custom_ua,
         "post_scan_command": post_scan_command,
-        "pentest_goal": pentest_goal
+        "pentest_goal": pentest_goal,
+        "allow_real_poc": allow_real_poc
     }
 
 # ===============================================================================
@@ -201,83 +211,87 @@ def display_vuln_scan_report(target):
         st.info("Aucune vulnérabilité n'a été trouvée.")
 
 # Fonction pour l'interface du Shell Simulé (Console de Diagnostic Actif)
-def display_active_diagnostic_console(target):
+def display_active_diagnostic_console(target, user_config):
     st.header("💻 Console de Diagnostic Actif (PoC)")
     st.warning("⚠️ ATTENTION : La **Console de Diagnostic Actif** envoie des charges utiles spécifiques. N'utilisez cette console que sur des cibles pour lesquelles vous avez un consentement **écrit**.")
     
     # --- INITIALISATION DES VARIABLES D'ÉTAT ---
-    if 'poc_output' not in st.session_state:
-        st.session_state.poc_output = ""
+    # Nous n'avons besoin que de l'historique d'exécution
     if 'shell_cmd_history' not in st.session_state:
         st.session_state.shell_cmd_history = ""
-    if 'last_executed_command' not in st.session_state:
-        st.session_state.last_executed_command = ""
-    if 'execute_poc_flag' not in st.session_state:
-        st.session_state.execute_poc_flag = False
+        
+    
+    # --- HANDLER D'EXÉCUTION (POUR LE CALLBACK DU BOUTON) ---
+    def execute_shell_command():
+        """Exécute la commande PoC et met à jour l'historique directement via la session state."""
+        
+        # Récupère la commande saisie via sa clé (avant que le champ ne soit vidé)
+        command = st.session_state.current_shell_command_input.strip()
+        
+        if not command:
+            return # Ne rien faire si la commande est vide
 
-    # Handler pour définir le flag d'exécution lors du clic sur le bouton
-    def set_execute_flag():
-        # Déclenche l'exécution et met à jour la variable de session pour l'historique
-        st.session_state.execute_poc_flag = True
-        st.session_state.last_executed_command = st.session_state.current_shell_command_input.strip()
+        new_output = ""
+        status_code = 500
+        
+        # --- BLOC D'EXÉCUTION DU PoC (avec gestion des erreurs) ---
+        try:
+            # Exécution du PoC (via le Module 3)
+            # Utilisation du PoC SIMULÉ/RÉEL (selon le verrou éthique dans Exploit_Adv.py)
+            # Ici on lit explicitement le flag depuis user_config passé par main()
+            force_real = bool(user_config.get('allow_real_poc', True))
+            # Passe le flag force_real à la fonction (ATTENTION: Exploit_Adv.simulate_poc_execution doit accepter ce paramètre)
+            new_output, status_code = simulate_poc_execution(target, command, force_real=force_real)
+        except ImportError:
+            new_output = "ERREUR CRITIQUE: Le module Exploit_Adv.py ou la fonction simulate_poc_execution est manquant(e)."
+            status_code = 500
+        except TypeError:
+            # Cas où simulate_poc_execution n'accepte pas encore le paramètre force_real :
+            # On retente l'appel historique (compatibilité descendante)
+            try:
+                new_output, status_code = simulate_poc_execution(target, command)
+            except Exception as e:
+                new_output = f"ERREUR D'EXÉCUTION DU PoC (fallback failed): {str(e)}"
+                status_code = 500
+        except Exception as e:
+            new_output = f"ERREUR D'EXÉCUTION DU PoC: {str(e)}"
+            status_code = 500
+        
+        # Construit le nouveau contenu pour l'affichage (ajoute la commande et la sortie)
+        st.session_state.shell_cmd_history += f"tropic@{target}:~# {command}\n"
+        st.session_state.shell_cmd_history += f"STATUT HTTP : {status_code}\n"
+        st.session_state.shell_cmd_history += new_output + "\n\n"
+        
+        # Pour vider visuellement le champ de saisie après l'exécution
+        st.session_state.current_shell_command_input = "" 
+        # Streamlit re-runnera automatiquement, affichant le nouvel historique.
 
 
-    # Champ de saisie pour la commande (utilise une clé pour la saisie actuelle)
+    # --- INTERFACE DE COMMANDE ---
+
+    # Champ de saisie pour la commande
     command_input = st.text_input(
         f"tropic@{target}:~# ", 
         key="current_shell_command_input", 
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        # Le on_change permet d'exécuter la commande si l'utilisateur appuie sur ENTER
+        on_change=execute_shell_command 
     )
     
-    # Logique d'exécution
     col1, col2 = st.columns([1, 4])
     
     with col1:
         # Le bouton déclenche l'exécution en utilisant le handler
-        execute_button = st.button("Exécuter PoC", type="secondary", use_container_width=True, on_click=set_execute_flag)
+        execute_button = st.button(
+            "Exécuter PoC", 
+            type="secondary", 
+            use_container_width=True, 
+            on_click=execute_shell_command # Le clic exécute directement la fonction de mise à jour de l'état
+        )
 
-    # Déclenchement de la logique : via le flag du bouton OU via la détection d'une nouvelle commande dans le champ d'entrée.
-    # L'utilisation du flag du bouton est la méthode la plus stable ici.
-    if st.session_state.execute_poc_flag:
-        
-        # Réinitialiser le flag APRÈS la vérification
-        st.session_state.execute_poc_flag = False
-        
-        # La commande est prise à partir de la valeur de session mise à jour par le handler
-        command = st.session_state.last_executed_command
-
-        if command:
-            
-            new_output = ""
-            status_code = 500
-            
-            # --- BLOC D'EXÉCUTION DU PoC (avec gestion des erreurs) ---
-            try:
-                # Exécution du PoC (via le Module 3)
-                new_output, status_code = simulate_poc_execution(target, command) 
-            except ImportError:
-                new_output = "ERREUR CRITIQUE: Le module Exploit_Adv.py ou la fonction simulate_poc_execution est manquant(e)."
-                status_code = 500
-            except Exception as e:
-                new_output = f"ERREUR D'EXÉCUTION DU PoC: {str(e)}"
-                status_code = 500
-            
-            # Construit le nouveau contenu pour l'affichage (ajoute la commande et la sortie)
-            st.session_state.shell_cmd_history += f"tropic@{target}:~# {command}\n"
-            
-            # Affichage du statut dans l'historique
-            st.session_state.shell_cmd_history += f"STATUT HTTP : {status_code}\n"
-            st.session_state.shell_cmd_history += new_output + "\n\n"
-            
-            # Pour vider visuellement le champ de saisie après l'exécution
-            st.session_state["current_shell_command_input"] = "" 
-            
-            # Ne pas utiliser st.rerun() ni de condition de changement d'entrée.
-            # L'application se rafraîchit naturellement après le traitement du callback.
-        
     # Affichage de la Console
     st.markdown("---")
-    st.code(st.session_state.shell_cmd_history if st.session_state.shell_cmd_history else "Tapez 'id' ou 'ls' pour tester l'accès (PoC) après avoir lancé un scan.", language='bash')
+    st.code(st.session_state.shell_cmd_history if st.session_state.shell_cmd_history else "Tapez 'id' ou 'ls' pour tester l'accès (PoC) et appuyez sur ENTRÉE ou cliquez sur 'Exécuter PoC'.", language='bash')
 
 # ===============================================================================
 #                             INTERFACE PRINCIPALE
@@ -441,13 +455,13 @@ def main():
                 display_api_scan_report(target_domain)
                 st.markdown("---")
 
-        # 3. MODULE VULN SCAN (Exploit_Adv.py) - LOGS EN TEMPS RÉEL (FIX)
+        # 3. MODULE VULN SCAN (Exploit_Adv.py) - LOGS EN TEMPS RÉEL
         if run_vuln_module:
             if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
                 st.warning("⏩ Skipping Module 3 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
             else:
                 
-                # --- NOUVELLE BARRE DE STATUT & PROGRESSION DANS LE CONTENEUR PRINCIPAL ---
+                # --- BARRE DE STATUT & PROGRESSION DANS LE CONTENEUR PRINCIPAL ---
                 st.subheader("💻 Terminal d'Exploitation en Temps Réel (Logs)")
                 
                 # Crée un statut Streamlit pour l'indicateur global
@@ -494,7 +508,7 @@ def main():
                             full_log_text += f"\n{log_line}"
                             # Mise à jour du placeholder de logs principal (terminal)
                             log_area_main.code(full_log_text, language='bash') 
-                            # ! CRITIQUE : on supprime le time.sleep(0.05) !
+                            # ! On enlève le time.sleep(0.05) pour une exécution plus rapide !
 
                     elapsed_time = (datetime.now() - start_time).total_seconds()
                     
@@ -519,7 +533,9 @@ def main():
         
         # 5. CONSOLE DE DIAGNOSTIC ACTIF
         st.markdown("---")
-        display_active_diagnostic_console(target_domain)
+        # NOTE : Cette fonction utilise maintenant un on_click callback pour l'exécution
+        # On passe user_config pour que la console sache si l'on force l'exécution réelle
+        display_active_diagnostic_console(target_domain, user_config)
         
         # Section de Documentation Éthique et Méthodologie
         st.markdown("---")
@@ -560,4 +576,3 @@ def main():
 # --- BLOC DE LANCEMENT SIMPLIFIÉ ---
 if __name__ == "__main__":
     main()
-
