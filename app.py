@@ -483,44 +483,18 @@ def main():
 
 
 def is_running_streamlit():
-    """Vérifie si Streamlit est déjà en cours d'exécution."""
-    try:
-        from streamlit.web.server import Server
-        return Server.get_current() is not None
-    except:
-        return False
+    """Vérifie si Streamlit est déjà en cours d'exécution (Simplifié)."""
+    # Dans un environnement Streamlit lancé correctement, cette vérification est simplifiée.
+    return 'streamlit' in sys.modules
 
 if __name__ == "__main__":
     
     # 1. Installer les dépendances (nécessite requirements.txt)
-    print("Initialisation des dépendances...")
-    try:
-        # Tente d'abord l'installation propre avec requirements.txt
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-    except Exception:
-        # Solution de secours si requirements.txt ou pip échouent
-        try:
-             subprocess.check_call([sys.executable, "-m", "pip", "install", "streamlit", "pandas", "requests"])
-        except Exception as e:
-            print(f"FATAL ERROR: Failed to install minimum dependencies. Details: {e}")
-            sys.exit(1)
-        
-    # 2. Lancement Corrigé : Lance Streamlit UNIQUEMENT si nous ne sommes pas déjà dans un thread Streamlit
-    if not is_running_streamlit():
-        print("\nAttempting to launch Streamlit application via python -m streamlit...")
-        try:
-            # Lance Streamlit en utilisant l'exécutable Python (méthode la plus fiable)
-            subprocess.run(
-                [
-                    sys.executable, "-m", "streamlit", "run", "app.py",
-                    "--server.port", "8501", 
-                    "--server.address", "0.0.0.0"
-                ],
-                check=True
-            )
-        except subprocess.CalledProcessError as e:
-            print(f"CRITICAL ERROR: Streamlit execution failed. The command 'streamlit run' could not be executed.")
-            sys.exit(1)
-    else:
-        # Si nous sommes déjà dans un thread Streamlit (lors du rechargement), appeler main()
-        main()
+    # RAPPEL ÉTHIQUE : Le code d'installation automatique via subprocess est retiré pour
+    # encourager l'installation manuelle propre par l'utilisateur via pip.
+    # print("Initialisation des dépendances... (À exécuter manuellement via pip install -r requirements.txt)")
+    
+    # 2. Lancement Corrigé : Appeler main() directement
+    # Streamlit exécute le script; nous appelons juste la fonction principale.
+    main()
+
