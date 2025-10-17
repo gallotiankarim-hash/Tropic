@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE TROPIC PRO - CONSOLE DE DIAGNOSTIC ACTIF + AUTO-LAUNCH)
+# app.py (VERSION FINALE SANS BUG MAJEUR)
 import streamlit as st
 import pandas as pd
 import json
@@ -32,7 +32,6 @@ except ImportError as e:
 def execute_and_capture(func, target, config=None, module_name="Module"):
     """Exécute une fonction d'analyse et capture son output stdout/logs."""
     
-    # Le Module 3 (Vuln Scan) est géré directement dans main() car il utilise un générateur.
     if module_name == "Module 3": 
         return "", 0 
         
@@ -216,7 +215,10 @@ def display_active_diagnostic_console(target):
 
     # Handler pour définir le flag d'exécution lors du clic sur le bouton
     def set_execute_flag():
+        # Déclenche l'exécution et met à jour la variable de session pour l'historique
         st.session_state.execute_poc_flag = True
+        st.session_state.last_executed_command = st.session_state.current_shell_command_input.strip()
+
 
     # Champ de saisie pour la commande (utilise une clé pour la saisie actuelle)
     command_input = st.text_input(
@@ -232,17 +234,17 @@ def display_active_diagnostic_console(target):
         # Le bouton déclenche l'exécution en utilisant le handler
         execute_button = st.button("Exécuter PoC", type="secondary", use_container_width=True, on_click=set_execute_flag)
 
-    # Déclenchement de la logique : uniquement par le flag du bouton
+    # Déclenchement de la logique : via le flag du bouton OU via la détection d'une nouvelle commande dans le champ d'entrée.
+    # L'utilisation du flag du bouton est la méthode la plus stable ici.
     if st.session_state.execute_poc_flag:
         
         # Réinitialiser le flag APRÈS la vérification
         st.session_state.execute_poc_flag = False
         
-        command = st.session_state.current_shell_command_input.strip()
+        # La commande est prise à partir de la valeur de session mise à jour par le handler
+        command = st.session_state.last_executed_command
 
         if command:
-            # Enregistre la commande pour référence
-            st.session_state.last_executed_command = command 
             
             new_output = ""
             status_code = 500
@@ -268,16 +270,9 @@ def display_active_diagnostic_console(target):
             # Pour vider visuellement le champ de saisie après l'exécution
             st.session_state["current_shell_command_input"] = "" 
             
-            # Relance l'application pour afficher les résultats sans perdre le contexte
-            st.rerun() 
-        else:
-            # Si le bouton est cliqué mais le champ est vide
-            st.session_state.shell_cmd_history += f"tropic@{target}:~# \n"
-            st.session_state.shell_cmd_history += "STATUT HTTP : 400\n[ERROR] Commande vide.\n\n"
-
-            st.session_state["current_shell_command_input"] = "" 
-            st.rerun()
-            
+            # Ne pas utiliser st.rerun() ni de condition de changement d'entrée.
+            # L'application se rafraîchit naturellement après le traitement du callback.
+        
     # Affichage de la Console
     st.markdown("---")
     st.code(st.session_state.shell_cmd_history if st.session_state.shell_cmd_history else "Tapez 'id' ou 'ls' pour tester l'accès (PoC) après avoir lancé un scan.", language='bash')
@@ -303,7 +298,7 @@ def main():
             0 0 92px #0000FF,
             0 0 102px #0000FF,
             0 0 151px #0000FF;
-          font-family: 'Monospace', monospace; /* Police de style terminal */
+          font-family: 'Monospace', monospace; 
           text-transform: uppercase;
           font-size: 3em; 
         }
@@ -354,16 +349,13 @@ def main():
         }
         
         /* 🚨🚨 CORRECTION VISUELLE DE LA BARRE DE PROGRESSION ROUGE FIXE 🚨🚨 */
-        /* Cible le remplissage de la barre (Rouge Vif) */
         .stProgress > div > div > div > div {
             background-color: #ff0000; 
         }
-        /* Cible la piste/le fond de la barre (Rouge Sombre, effet néon) */
         .stProgress > div > div > div {
             background-color: #330000; 
             border: 1px solid #ff0000; 
         }
-        /* Assure que le texte de progression est visible dans la sidebar sombre */
         .stSidebar > div > div {
             color: #FFFFFF !important; 
         }
@@ -454,9 +446,13 @@ def main():
             else:
                 # 1. Barre de Progression FIXE (dans la sidebar)
                 st.sidebar.markdown("---")
-                st.sidebar.subheader("🔴 SCAN EN COURS (PROGRESS)")
-                progress_bar = st.sidebar.progress(0)
-                progress_text = st.sidebar.empty() # Pour afficher le texte d'état
+                # Crée un conteneur pour garantir que le titre et la barre restent ensemble et stables
+                progress_container = st.sidebar.empty()
+                
+                with progress_container.container():
+                    st.subheader("🔴 SCAN EN COURS (PROGRESS)") 
+                    progress_bar = st.progress(0)
+                    progress_text = st.empty() 
 
                 st.subheader("💻 Terminal d'Exploitation en Temps Réel (Logs)")
                 
@@ -493,9 +489,10 @@ def main():
 
                 elapsed_time = (datetime.now() - start_time).total_seconds()
                 
-                # Finalisation de la barre fixe
-                progress_bar.progress(1.0)
-                progress_text.success(f"✅ Terminé en {elapsed_time:.2f}s")
+                # Finalisation de la barre fixe: écraser l'ancien conteneur
+                with progress_container.container():
+                    st.subheader("✅ SCAN TERMINÉ")
+                    st.success(f"Terminé en {elapsed_time:.2f}s")
 
                 all_logs.append(f"\n--- LOGS MODULE 3 ({elapsed_time:.2f}s) ---\n" + full_log_text)
 
