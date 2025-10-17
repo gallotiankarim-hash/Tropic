@@ -1,0 +1,19 @@
+// .devcontainer/devcontainer.json
+{
+    // Utiliser l'image de base que tu utilises
+    "image": "mcr.microsoft.com/devcontainers/universal:latest",
+
+    // Bloquer explicitement toutes les features par défaut
+    // (LFS, Node, etc.) si elles ne sont pas nécessaires.
+    "features": {},
+
+    // S'assurer qu'aucune commande post-création n'est définie
+    "postCreateCommand": null,
+
+    // Définir le répertoire de travail
+    "workspaceFolder": "/workspaces/${localWorkspaceFolder}",
+
+    // [ACTION RECOMMANDÉE] Installer tes dépendances ici
+    // Cette commande s'exécutera APRÈS la création du conteneur.
+    "postCreateCommand": "pip install streamlit pandas requests" 
+}
