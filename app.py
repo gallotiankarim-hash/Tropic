@@ -301,7 +301,7 @@ def main():
 col_left_spacer, col_content, col_right_spacer = st.columns([1, 6, 1])
 
 with col_content:
-    gif_path = os.path.join("streamlit", "assets", "banner.gif")
+    gif_path = os.path.join("streamlit", "assets", "banner.GIF")
 
     # Injection du style CSS
     st.markdown(
