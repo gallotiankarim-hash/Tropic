@@ -350,7 +350,22 @@ def main():
             padding: 15px;
             font-size: 14px;
             overflow-x: auto;
-            max-height: 400px; /* Limite la hauteur du terminal */
+            max-height: 400px; 
+        }
+        
+        /* 🚨🚨 CORRECTION VISUELLE DE LA BARRE DE PROGRESSION ROUGE FIXE 🚨🚨 */
+        /* Cible le remplissage de la barre (Rouge Vif) */
+        .stProgress > div > div > div > div {
+            background-color: #ff0000; 
+        }
+        /* Cible la piste/le fond de la barre (Rouge Sombre, effet néon) */
+        .stProgress > div > div > div {
+            background-color: #330000; 
+            border: 1px solid #ff0000; 
+        }
+        /* Assure que le texte de progression est visible dans la sidebar sombre */
+        .stSidebar > div > div {
+            color: #FFFFFF !important; 
         }
     </style>
     """, unsafe_allow_html=True)
@@ -472,8 +487,9 @@ def main():
                     # Affichage du Log normal
                     else:
                         full_log_text += f"\n{log_line}"
+                        # Utiliser le format st.code pour l'affichage terminal
                         log_area.code(full_log_text, language='markdown') 
-                        time.sleep(0.05) 
+                        time.sleep(0.05) # Petite pause pour le rafraîchissement Streamlit
 
                 elapsed_time = (datetime.now() - start_time).total_seconds()
                 
