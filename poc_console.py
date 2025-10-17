@@ -1,4 +1,4 @@
-# poc_console.py (corrigé : safe rerun wrapper + logique PoC inchangée)
+# poc_console.py (version solide avec contrôle easy false/true)
 import streamlit as st
 from datetime import datetime
 import time
@@ -56,14 +56,19 @@ def _append_history(msg: str):
 # -----------------------------------------------------------------------------
 def render_poc_console(target_domain: str, user_config: dict):
     """
-    Console PoC améliorée :
-     - commandes supportées : id, ls, probe:<URL>, http:<URL>, local:<command> (optionnel)
-     - utilise requests pour probe/http
-     - garde l'historique dans st.session_state sous préfixe 'poc_'
+    Console PoC solide avec contrôle easy false/true :
+     - allow_real_poc=True : exécution réelle des commandes locales
+     - allow_real_poc=False : simulation sécurisée avec résultats réalistes
+     - commandes supportées : id, ls, whoami, probe:<URL>, http:<URL>, local:<command>
     """
 
     st.markdown("### 💻 Console PoC / Terminal d'Exploitation")
     st.warning("⚠️ Utiliser uniquement sur des cibles pour lesquelles vous avez une autorisation écrite.")
+
+    # Affichage du mode actuel
+    allow_real = user_config.get('allow_real_poc', False)
+    mode_text = "🔴 **MODE RÉEL** (commandes exécutées localement)" if allow_real else "🟢 **MODE SIMULATION** (commandes simulées)"
+    st.info(mode_text)
 
     # -------------------------
     # initialisation session
@@ -83,7 +88,7 @@ def render_poc_console(target_domain: str, user_config: dict):
     if st.session_state['poc_shell_cmd_history_list']:
         st.code("\n".join(st.session_state['poc_shell_cmd_history_list'][-st.session_state['poc_max_history']:]), language='bash')
     else:
-        st.info("Historique vide — utilisez `id`, `ls`, `probe:<URL>` ou `http:<URL>`.")
+        st.info("Historique vide — utilisez `id`, `ls`, `whoami`, `probe:<URL>` ou `http:<URL>`.")
 
     st.markdown("---")
 
@@ -104,28 +109,96 @@ def render_poc_console(target_domain: str, user_config: dict):
                 st.warning("Commande vide — rien à exécuter.")
                 st.session_state['poc_last_status'] = "Aucune commande fournie"
                 st.session_state['poc_last_time'] = timestamp
-                # On met à jour l'UI si possible
                 _safe_rerun()
                 return
 
             # safe defaults
             default_timeout = int(user_config.get('timeout', 7))
             ua = user_config.get('user_agent', "TROPIC-PoC/1.0")
+            allow_real_poc = user_config.get('allow_real_poc', False)
 
-            # --- commandes internes simples ---
+            # --- id ---
             if cmd.lower() == 'id':
                 _append_history("$ id")
-                # réponse simulée
-                _append_history("uid=1000(tropic) gid=1000(tropic) groups=1000(tropic),27(sudo)")
-                st.session_state['poc_last_status'] = "200 (simulé)"
+                if allow_real_poc:
+                    # Exécution réelle
+                    import subprocess
+                    try:
+                        res = subprocess.run(['id'], capture_output=True, text=True, timeout=10)
+                        if res.stdout:
+                            _append_history(res.stdout.strip())
+                        if res.stderr:
+                            _append_history(f"[ERR] {res.stderr.strip()}")
+                        st.session_state['poc_last_status'] = f"returncode {res.returncode}"
+                    except subprocess.TimeoutExpired:
+                        _append_history("[ERROR] Commande expirée (timeout)")
+                        st.session_state['poc_last_status'] = "408"
+                    except Exception as e:
+                        _append_history(f"[ERROR] {str(e)}")
+                        st.session_state['poc_last_status'] = "ERROR"
+                else:
+                    # Simulation
+                    _append_history("uid=1000(tropic) gid=1000(tropic) groups=1000(tropic),27(sudo)")
+                    st.session_state['poc_last_status'] = "200 (simulé)"
                 st.session_state['poc_last_time'] = timestamp
                 _safe_rerun()
                 return
 
+            # --- ls ---
             if cmd.lower() == 'ls':
                 _append_history("$ ls")
-                _append_history("app.py\npoc_console.py\nExploit_Adv.py\noutput/")
-                st.session_state['poc_last_status'] = "200 (simulé)"
+                if allow_real_poc:
+                    # Exécution réelle
+                    import subprocess
+                    try:
+                        res = subprocess.run(['ls'], capture_output=True, text=True, timeout=10)
+                        if res.stdout:
+                            for line in res.stdout.strip().splitlines():
+                                _append_history(line)
+                        if res.stderr:
+                            _append_history(f"[ERR] {res.stderr.strip()}")
+                        st.session_state['poc_last_status'] = f"returncode {res.returncode}"
+                    except subprocess.TimeoutExpired:
+                        _append_history("[ERROR] Commande expirée (timeout)")
+                        st.session_state['poc_last_status'] = "408"
+                    except Exception as e:
+                        _append_history(f"[ERROR] {str(e)}")
+                        st.session_state['poc_last_status'] = "ERROR"
+                else:
+                    # Simulation
+                    _append_history("app.py")
+                    _append_history("poc_console.py")
+                    _append_history("Exploit_Adv.py")
+                    _append_history("output/")
+                    _append_history("requirements.txt")
+                    st.session_state['poc_last_status'] = "200 (simulé)"
+                st.session_state['poc_last_time'] = timestamp
+                _safe_rerun()
+                return
+
+            # --- whoami ---
+            if cmd.lower() == 'whoami':
+                _append_history("$ whoami")
+                if allow_real_poc:
+                    # Exécution réelle
+                    import subprocess
+                    try:
+                        res = subprocess.run(['whoami'], capture_output=True, text=True, timeout=10)
+                        if res.stdout:
+                            _append_history(res.stdout.strip())
+                        if res.stderr:
+                            _append_history(f"[ERR] {res.stderr.strip()}")
+                        st.session_state['poc_last_status'] = f"returncode {res.returncode}"
+                    except subprocess.TimeoutExpired:
+                        _append_history("[ERROR] Commande expirée (timeout)")
+                        st.session_state['poc_last_status'] = "408"
+                    except Exception as e:
+                        _append_history(f"[ERROR] {str(e)}")
+                        st.session_state['poc_last_status'] = "ERROR"
+                else:
+                    # Simulation
+                    _append_history("tropic")
+                    st.session_state['poc_last_status'] = "200 (simulé)"
                 st.session_state['poc_last_time'] = timestamp
                 _safe_rerun()
                 return
@@ -205,35 +278,54 @@ def render_poc_console(target_domain: str, user_config: dict):
                 _safe_rerun()
                 return
 
-            # --- local:<cmd> -> exécution locale (forte restriction) ---
+            # --- local:<cmd> -> exécution locale ou simulation ---
             if cmd.lower().startswith("local:"):
-                if not user_config.get('allow_real_poc', False):
-                    _append_history("$ " + cmd)
-                    _append_history("[BLOCKED] Exécution locale désactivée par configuration.")
-                    st.session_state['poc_last_status'] = "403 (local exec blocked)"
+                local_cmd = cmd[len("local:"):].strip()
+                _append_history(f"$ {local_cmd}")
+                
+                if not allow_real_poc:
+                    # Simulation quand allow_real_poc=False
+                    _append_history(f"[SIMULATION] {local_cmd}")
+                    # Résultats simulés réalistes selon la commande
+                    if "ls" in local_cmd:
+                        _append_history("app.py")
+                        _append_history("poc_console.py") 
+                        _append_history("Exploit_Adv.py")
+                        _append_history("output/")
+                    elif "id" in local_cmd:
+                        _append_history("uid=1000(tropic) gid=1000(tropic) groups=1000(tropic),27(sudo)")
+                    elif "whoami" in local_cmd:
+                        _append_history("tropic")
+                    elif "pwd" in local_cmd:
+                        _append_history("/home/tropic/tropic-tool")
+                    else:
+                        _append_history(f"Commande '{local_cmd}' exécutée avec succès")
+                    st.session_state['poc_last_status'] = "200 (simulé)"
                     st.session_state['poc_last_time'] = timestamp
                     _safe_rerun()
                     return
-                local_cmd = cmd[len("local:"):].strip()
-                # whitelist de base
-                allowed = ["ls", "ls -la", "id", "whoami", "pwd"]
-                if local_cmd.split()[0] not in [a.split()[0] for a in allowed]:
-                    _append_history(f"$ {local_cmd}")
-                    _append_history("[BLOCKED] Commande locale non autorisée par la whitelist.")
+                
+                # Si allow_real_poc=True, exécution réelle avec whitelist
+                allowed_commands = ["ls", "id", "whoami", "pwd"]
+                command_base = local_cmd.split()[0] if local_cmd.split() else ""
+                
+                if command_base not in allowed_commands:
+                    _append_history(f"[BLOCKED] Commande '{command_base}' non autorisée. Whitelist: {', '.join(allowed_commands)}")
                     st.session_state['poc_last_status'] = "403 (command not allowed)"
                     st.session_state['poc_last_time'] = timestamp
                     _safe_rerun()
                     return
+                
                 import subprocess
                 try:
-                    res = subprocess.run(local_cmd, shell=True, capture_output=True, text=True, timeout=60)
+                    res = subprocess.run(local_cmd, shell=True, capture_output=True, text=True, timeout=30)
                     if res.stdout:
                         for line in res.stdout.strip().splitlines():
                             _append_history(line)
                     if res.stderr:
                         for line in res.stderr.strip().splitlines():
                             _append_history(f"[ERR] {line}")
-                    st.session_state['poc_last_status'] = f"local returncode {res.returncode}"
+                    st.session_state['poc_last_status'] = f"returncode {res.returncode}"
                 except subprocess.TimeoutExpired:
                     _append_history("[ERROR] Commande locale expirée (timeout)")
                     st.session_state['poc_last_status'] = "408"
@@ -246,22 +338,34 @@ def render_poc_console(target_domain: str, user_config: dict):
 
             # --- commande inconnue: on renvoie aide synthétique ---
             _append_history(f"$ {cmd}")
-            _append_history("[SIMULATED] Commande non reconnue. Commandes supportées :")
-            _append_history("  - id")
-            _append_history("  - ls")
-            _append_history("  - probe:<URL>   -> test reflection en GET ?input=<token>")
-            _append_history("  - http:<URL>    -> GET simple (status + body snippet)")
-            _append_history("  - local:<cmd>   -> exécuter localement (si allow_real_poc True, whitelist)")
+            _append_history("[ERROR] Commande non reconnue. Commandes supportées :")
+            _append_history("  - id, ls, whoami                    (commandes simples)")
+            _append_history("  - probe:<URL>                       (test reflection GET ?input=<token>)")
+            _append_history("  - http:<URL> / https:<URL>          (GET simple)")
+            _append_history("  - local:<cmd>                       (exécution locale)")
+            _append_history("")
+            _append_history(f"Mode actuel: {'RÉEL' if allow_real_poc else 'SIMULATION'}")
             st.session_state['poc_last_status'] = "400 (unknown command)"
             st.session_state['poc_last_time'] = timestamp
             _safe_rerun()
             return
 
-    # petit récap en dessous
+    # Affichage du statut en bas
+    st.markdown("---")
     cols = st.columns([1, 3])
     with cols[0]:
-        st.write("Dernier statut")
-        st.write(st.session_state.get('poc_last_status', "N/A"))
+        st.write("**Dernier statut**")
+        status = st.session_state.get('poc_last_status', "N/A")
+        if "simulé" in str(status).lower() or "simulation" in str(status).lower():
+            st.success(status)
+        elif "error" in str(status).lower() or "40" in str(status) or "50" in str(status):
+            st.error(status)
+        else:
+            st.info(status)
+    
     with cols[1]:
-        st.write("Dernière action")
+        st.write("**Dernière action**")
         st.write(st.session_state.get('poc_last_time', "N/A"))
+
+    # Information sur le mode
+    st.caption(f"🔧 Configuration: timeout={user_config.get('timeout', 7)}s | allow_real_poc={allow_real}")
