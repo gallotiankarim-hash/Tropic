@@ -1,122 +1,86 @@
-# poc_console.py - VERSION FATASS FLAGRANT DINGUE
+# poc_console.py
 import streamlit as st
-import streamlit.components.v1 as components
+import subprocess
 from datetime import datetime
-import threading
-import time
 
-# ------------------------------------------------------------
-# IMPORT SIMULATEUR/EXECUTEUR PoC
-# ------------------------------------------------------------
-try:
-    from Exploit_Adv import simulate_poc_execution
-except ImportError:
-    # Placeholder pour tests rapides
-    def simulate_poc_execution(target, command, force_real):
-        if command.lower() == 'id':
-            return "uid=1000(tropic) gid=1000(tropic) groups=1000(tropic),27(sudo)", 200
-        elif command.lower() == 'ls':
-            return "app.py\npoc_console.py\nRecon.py\noutput/", 200
-        else:
-            return f"Commande '{command}' simulée. Utilise 'id' ou 'ls'.", 404
+# ===============================================================================
+#                       FONCTION DE LA CONSOLE PoC
+# ===============================================================================
 
-# ------------------------------------------------------------
-# CONSTANTES
-# ------------------------------------------------------------
-MAX_HISTORY_LINES = 100  # Limite pour la performance
-TERMINAL_EMOJI = "💥"
-STATUS_COLOR = {200: "green", 404: "orange", 500: "red"}
-
-# ------------------------------------------------------------
-# FOCUS AUTO SUR INPUT
-# ------------------------------------------------------------
-def set_focus_on_input():
-    js_code = """
-        <script>
-            const inputElement = parent.document.querySelector('[data-testid="stTextInput"] input');
-            if(inputElement){ window.requestAnimationFrame(()=>{inputElement.focus();}); }
-        </script>
+def render_poc_console(target_domain: str, user_config: dict):
     """
-    components.html(js_code, height=0, width=0)
-
-# ------------------------------------------------------------
-# AFFICHAGE HISTORIQUE
-# ------------------------------------------------------------
-def update_console_display(console_display_area):
-    history = st.session_state.shell_cmd_history_list
-    if len(history) > MAX_HISTORY_LINES:
-        history = history[-MAX_HISTORY_LINES:]
-
-    full_text = "\n".join(history) if history else "Tapez 'id' ou 'ls' pour tester l'accès (PoC)."
+    Console d'exécution PoC pour le module 3 (Exploit/Advanced Vulnerability Scan)
+    - Utilise st.session_state avec préfixe 'poc_'
+    - Permet exécution de commandes, logs persistants et historique
+    """
     
-    with console_display_area.container():
-        st.markdown(TERMINAL_EMOJI + "="*50 + TERMINAL_EMOJI)
-        st.code(full_text, language='bash')
-    set_focus_on_input()
-
-# ------------------------------------------------------------
-# EXECUTION ASYNCHRONE POUR NE JAMAIS BLOQUER L'UI
-# ------------------------------------------------------------
-def execute_command_async(target, command, user_config, console_display_area):
-    def runner():
-        try:
-            force_real = bool(user_config.get('allow_real_poc', True))
-            output, status_code = simulate_poc_execution(target, command, force_real)
-        except Exception as e:
-            output, status_code = f"ERREUR CRITIQUE D'EXECUTION: {str(e)}", 500
-
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.shell_cmd_history_list.append(f"[{timestamp}] tropic@{target}:~# {command}")
-        st.session_state.shell_cmd_history_list.append(f"STATUT HTTP : {status_code}")
-        st.session_state.shell_cmd_history_list.extend(output.splitlines())
-        st.session_state.shell_cmd_history_list.append("\n" + TERMINAL_EMOJI*10 + "\n")
-        st.session_state.current_shell_command_input = ""
-        update_console_display(console_display_area)
+    st.markdown("### 💻 Console PoC / Terminal d'Exploitation")
     
-    threading.Thread(target=runner, daemon=True).start()
+    # --- Préparation des clefs session_state ---
+    if 'poc_shell_cmd_history_list' not in st.session_state:
+        st.session_state['poc_shell_cmd_history_list'] = []
+    if 'poc_current_shell_command_input' not in st.session_state:
+        st.session_state['poc_current_shell_command_input'] = ""
+    if 'poc_last_status' not in st.session_state:
+        st.session_state['poc_last_status'] = None
+    if 'poc_last_time' not in st.session_state:
+        st.session_state['poc_last_time'] = None
+    if 'poc_max_history' not in st.session_state:
+        st.session_state['poc_max_history'] = 500  # Limite raisonnable pour la perf
 
-# ------------------------------------------------------------
-# RENDER CONSOLE PRINCIPALE
-# ------------------------------------------------------------
-def render_poc_console(target, user_config):
-    st.header(f"💻 Console PoC Actif - {target}")
-    st.warning("⚠️ Utilisez uniquement sur des cibles autorisées.")
+    # --- Affichage historique ---
+    if st.session_state['poc_shell_cmd_history_list']:
+        st.markdown("#### Historique des commandes")
+        st.code("\n".join(st.session_state['poc_shell_cmd_history_list'][-st.session_state['poc_max_history']:]), language='bash')
 
-    # INITIALISATION SESSION
-    if 'shell_cmd_history_list' not in st.session_state:
-        st.session_state.shell_cmd_history_list = []
-    if 'current_shell_command_input' not in st.session_state:
-        st.session_state.current_shell_command_input = ""
-
-    console_display_area = st.empty()
-
-    # INPUT DE COMMANDE
-    st.text_input(
-        f"tropic@{target}:~# ",
-        key="current_shell_command_input",
-        label_visibility="collapsed",
-        on_change=lambda: execute_command_async(
-            target,
-            st.session_state.current_shell_command_input.strip(),
-            user_config,
-            console_display_area
-        )
+    # --- Input pour la commande ---
+    st.session_state['poc_current_shell_command_input'] = st.text_input(
+        "Entrer commande PoC (Ex: ls -la /tmp)", 
+        value=st.session_state.get('poc_current_shell_command_input', ""), 
+        key="poc_input_cmd"
     )
 
-    # BOUTON EXECUTION
-    col1, _ = st.columns([1, 4])
-    with col1:
-        st.button(
-            "Exécuter PoC",
-            type="secondary",
-            use_container_width=True,
-            on_click=lambda: execute_command_async(
-                target,
-                st.session_state.current_shell_command_input.strip(),
-                user_config,
-                console_display_area
-            )
-        )
+    # --- Bouton Exécuter ---
+    if st.button("▶️ Exécuter Commande PoC"):
+        cmd = st.session_state['poc_current_shell_command_input'].strip()
+        if not cmd:
+            st.warning("Veuillez entrer une commande avant d'appuyer sur Exécuter.")
+            return
+        
+        # --- Vérification consentement utilisateur ---
+        if not user_config.get('allow_real_poc', False):
+            st.error("Exécution réelle de PoC désactivée par configuration. Autorisez-la dans la sidebar.")
+            return
+        
+        # --- Ajout à l'historique ---
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state['poc_shell_cmd_history_list'].append(f"[{timestamp}] $ {cmd}")
+        if len(st.session_state['poc_shell_cmd_history_list']) > st.session_state['poc_max_history']:
+            st.session_state['poc_shell_cmd_history_list'] = st.session_state['poc_shell_cmd_history_list'][-st.session_state['poc_max_history']:]
+        
+        # --- Exécution sécurisée de la commande ---
+        try:
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+            output = result.stdout.strip()
+            error = result.stderr.strip()
+            if output:
+                st.session_state['poc_shell_cmd_history_list'].append(output)
+            if error:
+                st.session_state['poc_shell_cmd_history_list'].append(f"[ERROR] {error}")
+            st.session_state['poc_last_status'] = "Succès" if result.returncode == 0 else f"Échec (Code {result.returncode})"
+        except subprocess.TimeoutExpired:
+            st.session_state['poc_shell_cmd_history_list'].append("[ERROR] Commande expirée (Timeout)")
+            st.session_state['poc_last_status'] = "Timeout"
+        except Exception as e:
+            st.session_state['poc_shell_cmd_history_list'].append(f"[ERROR] Exception : {str(e)}")
+            st.session_state['poc_last_status'] = f"Erreur critique: {str(e)}"
 
-    # AFFICHAGE INITIAL
-    update_console_display(console_display_area)
+        st.session_state['poc_last_time'] = timestamp
+        st.session_state['poc_current_shell_command_input'] = ""
+
+        # --- Rafraîchissement du code area ---
+        st.experimental_rerun()
+
+    # --- Affichage du dernier statut ---
+    if st.session_state['poc_last_status']:
+        st.markdown(f"**Dernier statut :** {st.session_state['poc_last_status']} (à {st.session_state['poc_last_time']})")
