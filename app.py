@@ -311,7 +311,7 @@ def main():
         # fallback : cherche n'importe quel .gif dans le dossier (case-insensitive)
         if os.path.isdir(assets_dir):
             for f in os.listdir(assets_dir):
-                if f.lower().endswith(".gif"):
+                if f.lower().endswith(".GIF"):
                     return os.path.join(assets_dir, f)
         return None
 
