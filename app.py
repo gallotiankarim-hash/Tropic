@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE TROPIC PRO - CONSOLE DE DIAGNOSTIC ACTIF + AUTO-LAUNCH)
+# app.py (VERSION FINALE TROPIC PRO - CONSOLE DE DIAGNOSTIC ACTIF)
 import streamlit as st
 import pandas as pd
 import json
@@ -12,16 +12,11 @@ import subprocess
 try:
     from Recon import run_recon
     from Api_scan import run_api_scan, SECURITY_SCORE_WEIGHTS
-    # Le module 3 est Exploit_Adv.py
+    # Le module 3 est maintenant Exploit_Adv.py
     from Exploit_Adv import run_vulnerability_scan, simulate_poc_execution 
 except ImportError as e:
-    # Affiche l'erreur si les modules ne sont pas trouvés, mais laisse le script se lancer pour le mode auto-launch
-    # La fonction main gérera l'affichage de l'erreur Streamlit si l'import échoue.
-    def placeholder_func(*args, **kwargs):
-        raise ImportError(f"FATAL ERROR: Security module missing or misnamed. Details: {e}")
-    run_recon = run_api_scan = run_vulnerability_scan = simulate_poc_execution = placeholder_func
-    SECURITY_SCORE_WEIGHTS = {'ENDPOINT_EXPOSED': 15, 'INJECTION_VULNERABLE': 30, 'PARAM_REFLECTION': 10}
-
+    st.error(f"Erreur d'importation : Assurez-vous que 'Recon.py', 'Api_scan.py', et 'Exploit_Adv.py' sont dans le même répertoire que app.py. ({e})")
+    sys.exit(1)
 
 # ===============================================================================
 #                             FONCTIONS D'EXECUTION / LOGS
@@ -191,7 +186,7 @@ def display_vuln_scan_report(target):
     else:
         st.info("Aucune vulnérabilité n'a été trouvée.")
 
-# Fonction pour l'interface du Shell Simulé (Console de Diagnostic Actif)
+# Fonction pour l'interface du Shell Simulé (renommée)
 def display_active_diagnostic_console(target):
     st.header("💻 Console de Diagnostic Actif (PoC)")
     st.warning("⚠️ ATTENTION : La **Console de Diagnostic Actif** envoie des charges utiles spécifiques. N'utilisez cette console que sur des cibles pour lesquelles vous avez un consentement **écrit**.")
@@ -222,7 +217,7 @@ def display_active_diagnostic_console(target):
             st.session_state.last_command = command 
             
             # Exécution du PoC (via le Module 3)
-            new_output, status_code = simulate_poc_execution(target, command) 
+            new_output, status_code = simulate_poc_execution(target, command)
             
             # Construit le nouveau contenu pour l'affichage (ajoute la commande et la sortie)
             st.session_state.shell_cmd_history += f"tropic@{target}:~# {command}\n"
@@ -446,45 +441,5 @@ def main():
         st.balloons()
 
 
-def is_running_streamlit():
-    """Vérifie si Streamlit est déjà en cours d'exécution."""
-    try:
-        from streamlit.web.server import Server
-        return Server.get_current() is not None
-    except:
-        return False
-
 if __name__ == "__main__":
-    
-    # 1. Installer les dépendances (nécessite requirements.txt)
-    print("Initialisation des dépendances...")
-    try:
-        # Tente d'abord l'installation propre avec requirements.txt
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-    except Exception:
-        # Solution de secours si requirements.txt ou pip échouent
-        try:
-             subprocess.check_call([sys.executable, "-m", "pip", "install", "streamlit", "pandas", "requests"])
-        except Exception as e:
-            print(f"FATAL ERROR: Failed to install minimum dependencies. Details: {e}")
-            sys.exit(1)
-        
-    # 2. Lancement Corrigé : Lance Streamlit UNIQUEMENT si nous ne sommes pas déjà dans un thread Streamlit
-    if not is_running_streamlit():
-        print("\nAttempting to launch Streamlit application via python -m streamlit...")
-        try:
-            # Lance Streamlit en utilisant l'exécutable Python (méthode la plus fiable)
-            subprocess.run(
-                [
-                    sys.executable, "-m", "streamlit", "run", "app.py",
-                    "--server.port", "8501", 
-                    "--server.address", "0.0.0.0"
-                ],
-                check=True
-            )
-        except subprocess.CalledProcessError as e:
-            print(f"CRITICAL ERROR: Streamlit execution failed. The command 'streamlit run' could not be executed.")
-            sys.exit(1)
-    else:
-        # Si nous sommes déjà dans un thread Streamlit (lors du rechargement), appeler main()
-        main()
+    main()
