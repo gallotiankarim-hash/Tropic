@@ -4,6 +4,7 @@ import pandas as pd
 import json
 import os
 import sys
+import re # Ajout nécessaire pour la fonction clean_target_domain
 from io import StringIO
 from datetime import datetime
 import subprocess
@@ -27,8 +28,8 @@ except ImportError as e:
         raise ImportError(f"FATAL ERROR: Security module missing or misnamed. Details: {e}") 
         
     run_recon = run_api_scan = run_vulnerability_scan = simulate_poc_execution = placeholder_func
+    
     # Définition des fonctions de remplacement pour les nouveaux imports
-    # Le placeholder de run_logic_analysis est un générateur qui renvoie le rapport de simulation d'erreur
     def placeholder_logic_generator(target, config):
         yield f"[ERROR] Module Logic_analyzer manquant ou introuvable: {e}"
         yield "[DONE]"
@@ -284,6 +285,15 @@ def display_logic_report(report_data):
         for summary in report_data.get('steps_summary', []):
             icon = "❌" if summary['vulnerable'] else ("✅" if summary['status'] not in [429, 400] else "⚠️")
             st.markdown(f"{icon} **{summary['name']}** (Status final: `{summary['status']}`)")
+            
+# 💡 NOUVELLE FONCTION D'UTILITÉ POUR NETTOYER LA CHAÎNE (Nécessaire après le diagnostic des logs)
+def clean_target_domain(domain: str) -> str:
+    """Retire les préfixes http/https et le chemin pour n'obtenir que le domaine brut."""
+    # Retire http(s)://
+    domain = re.sub(r'^https?://', '', domain)
+    # Retire tout chemin/slash final
+    domain = domain.split('/')[0]
+    return domain
 
 
 # ===============================================================================
@@ -508,12 +518,19 @@ def main():
         if 'current_shell_command_input' not in st.session_state:
             st.session_state['current_shell_command_input'] = ""
 
+        # --- INPUT DOMAIN ---
+        raw_target_domain = st.text_input("Domaine Cible (Ex: votre-cible.com)", value="sypahwellness.com")
+        
+        # 💡 CORRECTION: Nettoyage de l'entrée avant l'exécution (résout les problèmes DNS et de chemins de fichiers)
+        target_domain = clean_target_domain(raw_target_domain) 
+        
+        if target_domain != raw_target_domain:
+            st.info(f"Cible traitée : Le scan s'exécutera sur **{target_domain}**.")
+
         # --- AFFICHAGE DU SCOPE ---
         st.markdown(f"**🎯 Objectif du Test :** _{user_config['pentest_goal']}_")
         st.divider() # Utilisation du séparateur moderne
         
-        # --- INPUT DOMAIN ---
-        target_domain = st.text_input("Domaine Cible (Ex: votre-cible.com)", value="votre-cible.com")
         st.divider() # Utilisation du séparateur moderne
 
         # --- SÉLECTION DES MODULES ---
@@ -551,6 +568,7 @@ def main():
             # 1. MODULE DE RECONNAISSANCE
             if run_recon_module:
                 with placeholder.status(f"Module 1: Exécution de la Reconnaissance sur **{target_domain}**...", expanded=True) as status:
+                    # Ici, target_domain est propre (ex: sypahwellness.com)
                     log, time_elapsed = execute_and_capture(run_recon, target_domain, user_config, module_name="Module 1") 
                     all_logs.append(f"\n--- LOGS MODULE 1 ({time_elapsed:.2f}s) ---\n" + log)
                     status.update(label=f"✅ Module 1 (Recon) terminé en {time_elapsed:.2f}s", state="complete", expanded=False)
@@ -560,7 +578,7 @@ def main():
 
             # 2. MODULE API SCAN
             if run_api_module:
-                # Vérification de dépendance
+                # Vérification de dépendance (le chemin utilise maintenant target_domain propre)
                 if (run_all or run_api_module) and not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
                     st.warning("⏩ Skipping Module 2 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
                     scan_successful = False
@@ -654,7 +672,7 @@ def main():
                                 display_vuln_scan_report(target_domain)
                                 st.divider()
                                 
-            # NOUVEAU BLOC : 4. MODULE LOGIC ANALYSIS (run_logic_analysis)
+            # NOUVEAU BLOC : 4. MODULE LOGIC ANALYSIS (run_logic_analysis) - FIXÉ
             if run_logic_module:
                 
                 with placeholder.status(f"Module 4: Préparation de l'Analyse de Logique sur **{target_domain}**...", expanded=True) as status:
@@ -667,16 +685,18 @@ def main():
                     try:
                         analysis_generator = run_logic_analysis(target_domain, user_config)
                         
-                        # Streaming des logs et récupération du rapport final
-                        for log_line in analysis_generator:
-                            if log_line == "[DONE]":
-                                # La prochaine valeur du générateur est le rapport (voir Logic_analyzer.py)
-                                final_report = next(analysis_generator) 
-                                break
-                                
-                            logs = (logs + "\n" + str(log_line)).strip()
-                            log_area_main.code(logs, language='bash') 
-                            
+                        # Streaming des logs et capture de la valeur de retour (le rapport)
+                        try:
+                            while True:
+                                # Tente de récupérer la prochaine ligne de log
+                                log_line = next(analysis_generator)
+                                logs = (logs + "\n" + str(log_line)).strip()
+                                log_area_main.code(logs, language='bash') 
+                        
+                        except StopIteration as e:
+                            # 💡 CORRECTION APPLIQUÉE : La valeur de retour du générateur est dans l'exception 'e.value'
+                            final_report = getattr(e, 'value', None) 
+                        
                     except Exception as e:
                         st.error(f"Erreur critique lors du lancement du Module 4: {e}")
                         scan_successful = False
@@ -688,14 +708,15 @@ def main():
                     all_logs.append(f"\n--- LOGS MODULE 4 ({elapsed_time:.2f}s) ---\n" + logs)
                     
                     if final_report:
-                        # Sauvegarde du rapport pour l'affichage (évite de relancer la fonction d'affichage)
+                        # Sauvegarde du rapport pour l'affichage 
                         st.session_state['module4_report'] = final_report 
                         with tab_logic:
                             display_logic_report(final_report)
-                        st.divider()
                     else:
                         with tab_logic:
                             st.error("Le module 4 a échoué à générer un rapport.")
+                    
+                    st.divider()
 
 
             # 5. POST-SCAN EXECUTOR
