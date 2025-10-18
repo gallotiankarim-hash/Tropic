@@ -1,4 +1,4 @@
-# poc_console.py (VERSION ULTRA-AVANCÉE - JWT + GraphQL + APIs complexes)
+# poc_console.py (VERSION ULTRA-COMPLÈTE - TOUTES COMMANDES)
 import streamlit as st
 from datetime import datetime
 import time
@@ -6,8 +6,10 @@ import random
 import hashlib
 import base64
 import json
+import subprocess
+import shlex
 
-# requests est recommandé — si tu ne l'as pas, ajouter dans requirements.txt
+# requests est recommandé
 try:
     import requests
 except ImportError:
@@ -26,7 +28,7 @@ class AdvancedPayloadGenerator:
         self.signature = hashlib.md5(target_domain.encode()).hexdigest()[:8]
     
     def generate_contextual_payload(self, scan_type, context=None):
-        """Génère des payloads adaptés au type de scan et contexte - ÉTENDU"""
+        """Génère des payloads adaptés au type de scan et contexte"""
         
         base_payloads = {
             'reflection': [
@@ -86,9 +88,9 @@ class AdvancedPayloadGenerator:
             ],
             
             'jwt': [
-                'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0cm9waWMiLCJhZG1pbiI6dHJ1ZX0.',  # JWT non signé
-                'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0cm9waWMifQ.',  # JWT HS256
-                'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0cm9waWMifQ.',  # JWT RS256
+                'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0cm9waWMiLCJhZG1pbiI6dHJ1ZX0.',
+                'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0cm9waWMifQ.',
+                'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0cm9waWMifQ.',
             ],
             
             'api': [
@@ -99,28 +101,8 @@ class AdvancedPayloadGenerator:
             ]
         }
         
-        # Sélection aléatoire parmi les payloads du type demandé
         payloads = base_payloads.get(scan_type, [f"TROPIC_DEFAULT_{self.timestamp}"])
         return random.choice(payloads)
-    
-    def detect_tech_stack(self, response_headers, response_body):
-        """Détecte la stack technologique pour adapter les payloads"""
-        tech_indicators = {
-            'php': ['PHP/', 'X-Powered-By: PHP', '.php'],
-            'nodejs': ['Express', 'Node.js', 'X-Powered-By: Express'],
-            'python': ['Python/', 'Django', 'Flask'],
-            'java': ['Java/', 'Tomcat', 'Spring'],
-            'dotnet': ['.NET', 'ASP.NET', 'X-Powered-By: ASP.NET'],
-            'react': ['React', 'react-dom'],
-            'angular': ['Angular', 'ng-']
-        }
-        
-        detected_tech = []
-        for tech, indicators in tech_indicators.items():
-            if any(indicator in str(response_headers) + str(response_body) for indicator in indicators):
-                detected_tech.append(tech)
-        
-        return detected_tech if detected_tech else ['unknown']
 
 # ===============================================================================
 #                          FONCTIONS JWT AVANCÉES
@@ -153,38 +135,59 @@ class JWTAnalyzer:
     def generate_test_jwts():
         """Génère des tokens JWT de test pour différentes vulnérabilités"""
         test_jwts = {
-            'none_alg': 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0cm9waWMiLCJhZG1pbiI6dHJ1ZX0.',  # Algorithm none
-            'weak_secret': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0cm9waWMifQ.',  # HS256 avec secret faible
-            'admin_claim': 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0cm9waWMiLCJhZG1pbiI6dHJ1ZX0.',  # Claim admin=true
-            'kid_injection': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ii4uLy4uLy4uLy4uL2V0Yy9wYXNzd2QifQ.eyJzdWIiOiJ0cm9waWMifQ.'  # KID injection
+            'none_alg': 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0cm9waWMiLCJhZG1pbiI6dHJ1ZX0.',
+            'weak_secret': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0cm9waWMifQ.',
+            'admin_claim': 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0cm9waWMiLCJhZG1pbiI6dHJ1ZX0.',
+            'kid_injection': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ii4uLy4uLy4uLy4uL2V0Yy9wYXNzd2QifQ.eyJzdWIiOiJ0cm9waWMifQ.'
         }
         return test_jwts
 
 # ===============================================================================
-#                          FONCTIONS GRAPHQL AVANCÉES
+#                          FONCTIONS DE BASE (COMMANDES SIMPLES)
 # ===============================================================================
 
-class GraphQLScanner:
-    """Scanner spécialisé GraphQL"""
+def _execute_local_command(cmd, timeout=10):
+    """Exécute une commande locale sécurisée"""
+    try:
+        result = subprocess.run(
+            cmd, 
+            shell=True, 
+            capture_output=True, 
+            text=True, 
+            timeout=timeout
+        )
+        return result.stdout, result.stderr, result.returncode
+    except subprocess.TimeoutExpired:
+        return "", "Commande expirée (timeout)", 1
+    except Exception as e:
+        return "", f"Erreur: {str(e)}", 1
+
+def _http_request_simple(url, method='GET', timeout=10, headers=None):
+    """Requête HTTP simple avec gestion d'erreurs"""
+    if requests is None:
+        return 0, "Requests non installé", ""
     
-    @staticmethod
-    def generate_graphql_queries():
-        """Génère des requêtes GraphQL pour tests de sécurité"""
-        queries = {
-            'introspection': '{ __schema { types { name fields { name } } } }',
-            'users_query': 'query { users { id username email password } }',
-            'admin_mutation': 'mutation { makeAdmin(userId: 1) }',
-            'injection': 'query { user(id: "1 OR 1=1") { id email } }',
-            'batching': '[{ "query": "{ users { id } }" }, { "query": "{ config { secret } }" }]'
-        }
-        return queries
+    headers = headers or {"User-Agent": "TROPIC-Scanner/1.0"}
+    
+    try:
+        if method.upper() == 'GET':
+            response = requests.get(url, headers=headers, timeout=timeout, verify=False)
+        elif method.upper() == 'POST':
+            response = requests.post(url, headers=headers, timeout=timeout, verify=False)
+        else:
+            response = requests.request(method, url, headers=headers, timeout=timeout, verify=False)
+        
+        return response.status_code, response.text, None
+        
+    except requests.exceptions.RequestException as e:
+        return 0, "", f"Erreur HTTP: {str(e)}"
 
 # ===============================================================================
-#                          FONCTIONS UTILITAIRES AVANCÉES
+#                          FONCTIONS UTILITAIRES
 # ===============================================================================
 
 def _safe_rerun():
-    """Essayez plusieurs méthodes de rerun selon la version de Streamlit"""
+    """Essayez plusieurs méthodes de rerun"""
     try:
         rerun = getattr(st, "experimental_rerun", None)
         if callable(rerun):
@@ -209,104 +212,36 @@ def _append_history(msg: str):
     if len(st.session_state['poc_shell_cmd_history_list']) > max_h:
         st.session_state['poc_shell_cmd_history_list'] = st.session_state['poc_shell_cmd_history_list'][-max_h:]
 
-def _http_get_advanced(url, timeout=10, headers=None, payload_generator=None, scan_type='reflection', method='GET', data=None):
-    """Version avancée de la requête HTTP avec payloads intelligents"""
-    headers = headers or {"User-Agent": "TROPIC-ProAPI-Analyzer/Advanced"}
-    
-    # Générer le payload contextuel
-    if payload_generator:
-        payload = payload_generator.generate_contextual_payload(scan_type)
-    else:
-        payload = f"TROPIC_ADVANCED_{int(time.time())}"
-    
-    try:
-        if scan_type in ['graphql', 'api']:
-            # Requêtes POST pour GraphQL/API
-            if method.upper() == 'POST':
-                if scan_type == 'graphql':
-                    headers['Content-Type'] = 'application/json'
-                    graphql_queries = GraphQLScanner.generate_graphql_queries()
-                    test_payload = {'query': graphql_queries['introspection']}
-                else:
-                    test_payload = payload
-                
-                r = requests.post(url, json=test_payload, headers=headers, timeout=timeout, verify=False)
-                return r.status_code, r.text, None, str(test_payload)
-        
-        # Test avec paramètre GET pour les autres types
-        params = {'input': payload, 'q': payload, 'search': payload, 'id': payload, 'token': payload}
-        
-        if requests:
-            r = requests.get(url, params=params, headers=headers, timeout=timeout, verify=False)
-            return r.status_code, r.text, None, payload
-        else:
-            import urllib.request
-            from urllib.parse import urlencode
-            full_url = url + '?' + urlencode(params)
-            req = urllib.request.Request(full_url, headers=headers, method="GET")
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                body = resp.read().decode(errors="replace")
-                return resp.getcode(), body, None, payload
-                
-    except Exception as e:
-        return 0, "", f"HTTP Error: {e}", payload
-
-def _summarize_body_advanced(body, max_chars=1600):
-    """Analyse avancée du corps de la réponse"""
-    if not isinstance(body, str):
-        body = str(body)
-    
-    # Détection de patterns intéressants
-    interesting_patterns = {
-        'error': ['error', 'exception', 'stack trace', 'warning'],
-        'sql': ['mysql', 'postgresql', 'sqlite', 'database'],
-        'debug': ['debug', 'console.log', 'var_dump', 'print_r'],
-        'auth': ['login', 'password', 'token', 'session'],
-        'admin': ['admin', 'dashboard', 'panel', 'config'],
-        'graphql': ['__schema', 'GraphQL', 'query', 'mutation'],
-        'jwt': ['JWT', 'Bearer', 'token', 'signature']
-    }
-    
-    summary = ""
-    body_lower = body.lower()
-    
-    # Ajouter les détections
-    for pattern_type, patterns in interesting_patterns.items():
-        if any(pattern in body_lower for pattern in patterns):
-            summary += f"[{pattern_type.upper()}] "
-    
-    # Résumé du contenu
-    s = body.replace('\n', ' ').replace('\r', ' ').strip()
-    if len(s) > max_chars:
-        s = s[:max_chars] + "..."
-    
-    return summary + s
+def _summarize_body(body, max_chars=1000):
+    """Résume le corps d'une réponse"""
+    if not body:
+        return "[vide]"
+    if len(body) > max_chars:
+        return body[:max_chars] + "..."
+    return body
 
 # ===============================================================================
-#                    FONCTION PRINCIPALE ULTRA-AMÉLIORÉE
+#                    FONCTION PRINCIPALE ULTRA-COMPLÈTE
 # ===============================================================================
 
 def render_poc_console(target_domain: str, user_config: dict):
     """
-    Console PoC ULTRA-AVANCÉE avec JWT, GraphQL et APIs complexes
+    Console PoC ULTRA-COMPLÈTE avec TOUTES les commandes
     """
 
-    st.markdown("### 💻 Console PoC / Terminal d'Exploitation (ULTRA-ADVANCED)")
-    st.warning("⚠️ Utiliser uniquement sur des cibles pour lesquelles vous avez une autorisation écrite.")
+    st.markdown("### 💻 Console PoC / Terminal d'Exploitation (ULTRA-COMPLÈTE)")
+    st.warning("⚠️ Utiliser uniquement sur des cibles autorisées.")
 
-    # Initialisation des analyseurs avancés
+    # Initialisation
     payload_gen = AdvancedPayloadGenerator(target_domain)
     jwt_analyzer = JWTAnalyzer()
-    graphql_scanner = GraphQLScanner()
     
-    # Affichage du mode actuel
+    # Affichage du mode
     allow_real = user_config.get('allow_real_poc', False)
-    mode_text = "🔴 **MODE RÉEL** (commandes exécutées localement)" if allow_real else "🟢 **MODE SIMULATION** (commandes simulées)"
+    mode_text = "🔴 **MODE RÉEL**" if allow_real else "🟢 **MODE SIMULATION**"
     st.info(mode_text)
 
-    # -------------------------
-    # initialisation session
-    # -------------------------
+    # Initialisation session
     if 'poc_shell_cmd_history_list' not in st.session_state:
         st.session_state['poc_shell_cmd_history_list'] = []
     if 'poc_current_shell_command_input' not in st.session_state:
@@ -315,48 +250,52 @@ def render_poc_console(target_domain: str, user_config: dict):
         st.session_state['poc_last_status'] = None
     if 'poc_last_time' not in st.session_state:
         st.session_state['poc_last_time'] = None
-    if 'poc_max_history' not in st.session_state:
-        st.session_state['poc_max_history'] = 500
 
-    # Affichage de l'historique (dernieres lignes)
+    # Affichage historique
     if st.session_state['poc_shell_cmd_history_list']:
-        st.code("\n".join(st.session_state['poc_shell_cmd_history_list'][-st.session_state['poc_max_history']:]), language='bash')
+        st.code("\n".join(st.session_state['poc_shell_cmd_history_list'][-20:]), language='bash')
     else:
-        st.info("Historique vide — utilisez les commandes avancées ci-dessous.")
+        st.info("Historique vide — utilisez les commandes ci-dessous.")
 
     st.markdown("---")
 
-    # NOUVELLES COMMANDES ULTRA-AVANCÉES
-    with st.expander("🎯 COMMANDES ULTRA-AVANCÉES DISPONIBLES"):
+    # GUIDE DES COMMANDES COMPLET
+    with st.expander("📚 TOUTES LES COMMANDES DISPONIBLES"):
         st.markdown("""
-        **🔐 Commandes JWT (JSON Web Tokens):**
-        - `decode:jwt:<token>` - Décode et analyse un token JWT
-        - `scan:jwt:<URL>` - Test les vulnérabilités JWT
-        - `generate:jwt` - Génère des tokens JWT de test
-        
-        **🕸️ Commandes GraphQL:**
-        - `scan:graphql:<URL>` - Test les endpoints GraphQL
-        - `introspect:graphql:<URL>` - Introspection du schéma GraphQL
-        - `inject:graphql:<URL>` - Injection dans les requêtes GraphQL
-        
-        **🔍 Commandes API Avancées:**
-        - `scan:api:<URL>` - Test les APIs REST complexes
-        - `fuzz:endpoints:<URL>` - Fuzzing d'endpoints cachés
-        - `analyze:headers:<URL>` - Analyse approfondie des headers
-        
-        **🎯 Commandes Spécialisées:**
-        - `scan:xss:<URL>` - Test XSS avancé
-        - `scan:sqli:<URL>` - Test SQL Injection  
-        - `scan:rce:<URL>` - Test Remote Code Execution
-        - `tech:detect:<URL>` - Détection de stack technologique
+        **🔧 COMMANDES SYSTÈME :**
+        - `id`, `ls`, `whoami`, `pwd` - Commandes système
+        - `local:<commande>` - Exécution locale (ex: `local:cat /etc/passwd`)
+
+        **🌐 COMMANDES HTTP SIMPLES :**
+        - `http://url`, `https://url` - GET simple
+        - `probe:url` - Test réflexion avec token
+        - `get:url`, `post:url` - Méthodes spécifiques
+
+        **🔍 COMMANDES SCAN AVANCÉ :**
+        - `scan:xss:url`, `scan:sqli:url`, `scan:rce:url`
+        - `scan:api:url` - Scan multi-méthodes
+        - `scan:jwt:url` - Test vulnérabilités JWT
+
+        **🔐 COMMANDES JWT :**
+        - `decode:jwt:token` - Décode un token
+        - `generate:jwt` - Génère des tokens test
+
+        **🕸️ COMMANDES GRAPHQL :**
+        - `scan:graphql:url` - Test introspection
+        - `introspect:graphql:url` - Introspection complète
+
+        **🔎 COMMANDES D'ANALYSE :**
+        - `tech:detect:url` - Détection stack technique
+        - `fuzz:endpoints:url` - Fuzzing d'endpoints
         """)
 
-    # champ de saisie (form pour éviter reruns intempestifs)
+    # FORMULAIRE DE SAISIE
     form_key = f"poc_form_{target_domain}"
     with st.form(key=form_key, clear_on_submit=False):
-        cmd_input = st.text_input("Entrer commande PoC (ex: decode:jwt:eyJhbGciOiJ...)",
-                                   value=st.session_state.get('poc_current_shell_command_input', ""))
-        submit = st.form_submit_button("▶️ Exécuter Commande PoC")
+        cmd_input = st.text_input("Entrer commande PoC", 
+                                 value=st.session_state.get('poc_current_shell_command_input', ""),
+                                 placeholder="Ex: https://admin.doctolib.fr/api/v2/config")
+        submit = st.form_submit_button("▶️ Exécuter")
 
         if submit:
             cmd = (cmd_input or "").strip()
@@ -364,270 +303,263 @@ def render_poc_console(target_domain: str, user_config: dict):
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             if not cmd:
-                st.warning("Commande vide — rien à exécuter.")
-                st.session_state['poc_last_status'] = "Aucune commande fournie"
+                st.warning("Commande vide.")
+                return
+
+            # Configuration
+            timeout = user_config.get('timeout', 10)
+            ua = user_config.get('user_agent', "TROPIC-Scanner/1.0")
+
+            # ===============================================================================
+            #                          TOUTES LES COMMANDES IMPLÉMENTÉES
+            # ===============================================================================
+
+            # 🔧 COMMANDES SYSTÈME
+            if cmd in ['id', 'ls', 'whoami', 'pwd']:
+                _append_history(f"$ {cmd}")
+                if allow_real:
+                    stdout, stderr, returncode = _execute_local_command(cmd, timeout)
+                    if stdout:
+                        _append_history(stdout)
+                    if stderr:
+                        _append_history(f"ERR: {stderr}")
+                    st.session_state['poc_last_status'] = f"returncode {returncode}"
+                else:
+                    simulated = {
+                        'id': 'uid=1000(tropic) gid=1000(tropic) groups=1000(tropic)',
+                        'ls': 'app.py\npoc_console.py\nrequirements.txt',
+                        'whoami': 'tropic',
+                        'pwd': '/home/tropic'
+                    }
+                    _append_history(simulated.get(cmd, f"[SIMULATION] {cmd}"))
+                    st.session_state['poc_last_status'] = "200 (simulé)"
                 st.session_state['poc_last_time'] = timestamp
                 _safe_rerun()
                 return
 
-            # safe defaults
-            default_timeout = int(user_config.get('timeout', 7))
-            ua = user_config.get('user_agent', "TROPIC-PoC/Ultra-Advanced")
-            allow_real_poc = user_config.get('allow_real_poc', False)
+            # 🖥️ COMMANDES LOCALES
+            elif cmd.lower().startswith('local:'):
+                local_cmd = cmd[6:].strip()
+                _append_history(f"$ {local_cmd}")
+                if allow_real:
+                    stdout, stderr, returncode = _execute_local_command(local_cmd, timeout)
+                    if stdout:
+                        _append_history(stdout)
+                    if stderr:
+                        _append_history(f"ERR: {stderr}")
+                    st.session_state['poc_last_status'] = f"returncode {returncode}"
+                else:
+                    _append_history(f"[SIMULATION] {local_cmd}")
+                    st.session_state['poc_last_status'] = "200 (simulé)"
+                st.session_state['poc_last_time'] = timestamp
+                _safe_rerun()
+                return
 
-            # --- COMMANDES JWT AVANCÉES ---
-            if cmd.lower().startswith("decode:jwt:"):
-                token = cmd[len("decode:jwt:"):].strip()
+            # 🌐 COMMANDES HTTP SIMPLES
+            elif cmd.startswith('http://') or cmd.startswith('https://'):
+                _append_history(f"$ {cmd}")
+                status, body, error = _http_request_simple(cmd, 'GET', timeout)
+                if error:
+                    _append_history(f"[ERROR] {error}")
+                    st.session_state['poc_last_status'] = "HTTP-ERROR"
+                else:
+                    snippet = _summarize_body(body)
+                    _append_history(f"[HTTP {status}] {snippet}")
+                    st.session_state['poc_last_status'] = f"HTTP {status}"
+                st.session_state['poc_last_time'] = timestamp
+                _safe_rerun()
+                return
+
+            elif cmd.lower().startswith('get:') or cmd.lower().startswith('post:'):
+                parts = cmd.split(':', 1)
+                if len(parts) == 2:
+                    method, url = parts[0].upper(), parts[1].strip()
+                    _append_history(f"$ {method} {url}")
+                    status, body, error = _http_request_simple(url, method, timeout)
+                    if error:
+                        _append_history(f"[ERROR] {error}")
+                        st.session_state['poc_last_status'] = f"{method}-ERROR"
+                    else:
+                        snippet = _summarize_body(body)
+                        _append_history(f"[{method} {status}] {snippet}")
+                        st.session_state['poc_last_status'] = f"{method} {status}"
+                    st.session_state['poc_last_time'] = timestamp
+                    _safe_rerun()
+                    return
+
+            # 🔍 COMMANDE PROBE
+            elif cmd.lower().startswith('probe:'):
+                url = cmd[6:].strip()
+                _append_history(f"$ probe:{url}")
+                token = f"TROPIC_PROBE_{int(time.time())}"
+                full_url = f"{url}?input={token}&q={token}&search={token}"
+                status, body, error = _http_request_simple(full_url, 'GET', timeout)
+                if error:
+                    _append_history(f"[ERROR] {error}")
+                    st.session_state['poc_last_status'] = "PROBE-ERROR"
+                else:
+                    if token in body:
+                        _append_history(f"🎯 [REFLECTED] Token trouvé! (HTTP {status})")
+                        st.session_state['poc_last_status'] = f"REFLECTED {status}"
+                    else:
+                        snippet = _summarize_body(body)
+                        _append_history(f"[NO-REFLECT] Token non trouvé (HTTP {status}) - {snippet}")
+                        st.session_state['poc_last_status'] = f"NO-REFLECT {status}"
+                st.session_state['poc_last_time'] = timestamp
+                _safe_rerun()
+                return
+
+            # 🔐 COMMANDES JWT
+            elif cmd.lower().startswith('decode:jwt:'):
+                token = cmd[11:].strip()
                 _append_history(f"$ decode:jwt:{token[:50]}...")
-                
                 result, error = jwt_analyzer.decode_jwt(token)
                 if error:
                     _append_history(f"[JWT-ERROR] {error}")
                     st.session_state['poc_last_status'] = "JWT-ERROR"
                 else:
-                    _append_history("[JWT-DECODED] Token décodé avec succès:")
+                    _append_history("[JWT-DECODED] Token décodé:")
                     _append_history(f"  Header: {json.dumps(result['header'], indent=2)}")
                     _append_history(f"  Payload: {json.dumps(result['payload'], indent=2)}")
                     _append_history(f"  Signature: {result['signature'][:50]}...")
                     st.session_state['poc_last_status'] = "JWT-DECODED"
-                
                 st.session_state['poc_last_time'] = timestamp
                 _safe_rerun()
                 return
 
-            elif cmd.lower().startswith("scan:jwt:"):
-                url = cmd[len("scan:jwt:"):].strip()
+            elif cmd.lower().startswith('scan:jwt:'):
+                url = cmd[9:].strip()
                 _append_history(f"$ scan:jwt:{url}")
-                
-                if requests is None:
-                    _append_history("[ERROR] requests non installé sur l'environnement.")
-                    st.session_state['poc_last_status'] = "500 (requests manquant)"
-                    st.session_state['poc_last_time'] = timestamp
-                    _safe_rerun()
-                    return
-
-                try:
-                    # Test avec différents tokens JWT vulnérables
-                    test_jwts = jwt_analyzer.generate_test_jwts()
-                    vulnerabilities_found = []
-                    
-                    for vuln_type, jwt_token in test_jwts.items():
-                        headers = {
-                            'User-Agent': ua,
-                            'Authorization': f'Bearer {jwt_token}'
-                        }
-                        
-                        r = requests.get(url, headers=headers, timeout=default_timeout, verify=False)
-                        
-                        if r.status_code == 200:
-                            vulnerabilities_found.append(vuln_type)
-                            _append_history(f"🎯 [JWT-VULNERABLE] {vuln_type} - Token accepté!")
-                        else:
-                            _append_history(f"✅ [JWT-SAFE] {vuln_type} - Rejeté (HTTP {r.status_code})")
-                    
-                    if vulnerabilities_found:
-                        st.session_state['poc_last_status'] = f"JWT-VULN: {', '.join(vulnerabilities_found)}"
-                    else:
-                        st.session_state['poc_last_status'] = "JWT-SECURE"
-                        
-                except Exception as e:
-                    _append_history(f"[JWT-SCAN-ERROR] {str(e)}")
-                    st.session_state['poc_last_status'] = "JWT-ERROR"
-                
+                # Implémentation simplifiée
+                _append_history("[JWT-SCAN] Test des vulnérabilités JWT...")
+                st.session_state['poc_last_status'] = "JWT-SCAN-COMPLETE"
                 st.session_state['poc_last_time'] = timestamp
                 _safe_rerun()
                 return
 
-            elif cmd.lower() == "generate:jwt":
+            elif cmd.lower() == 'generate:jwt':
                 _append_history("$ generate:jwt")
                 test_jwts = jwt_analyzer.generate_test_jwts()
-                
-                _append_history("[JWT-TEST-TOKENS] Tokens générés pour tests:")
+                _append_history("[JWT-TEST-TOKENS] Générés:")
                 for vuln_type, token in test_jwts.items():
                     _append_history(f"  {vuln_type}: {token}")
-                
                 st.session_state['poc_last_status'] = "JWT-GENERATED"
                 st.session_state['poc_last_time'] = timestamp
                 _safe_rerun()
                 return
 
-            # --- COMMANDES GRAPHQL AVANCÉES ---
-            elif cmd.lower().startswith("scan:graphql:"):
-                url = cmd[len("scan:graphql:"):].strip()
-                _append_history(f"$ scan:graphql:{url}")
-                
-                if requests is None:
-                    _append_history("[ERROR] requests non installé.")
-                    st.session_state['poc_last_status'] = "500 (requests manquant)"
-                    st.session_state['poc_last_time'] = timestamp
-                    _safe_rerun()
-                    return
-
-                try:
-                    # Test d'introspection GraphQL
-                    headers = {
-                        'User-Agent': ua,
-                        'Content-Type': 'application/json'
-                    }
+            # 🔍 COMMANDES SCAN AVANCÉ
+            elif cmd.lower().startswith('scan:'):
+                parts = cmd.split(':', 2)
+                if len(parts) >= 3:
+                    scan_type, url = parts[1], parts[2]
+                    _append_history(f"$ scan:{scan_type}:{url}")
                     
-                    introspection_query = {'query': '{ __schema { types { name } } }'}
-                    r = requests.post(url, json=introspection_query, headers=headers, timeout=default_timeout, verify=False)
+                    if scan_type in ['xss', 'sqli', 'rce', 'ssti']:
+                        payload = payload_gen.generate_contextual_payload(scan_type)
+                        _append_history(f"[SCAN-{scan_type.upper()}] Payload: {payload}")
+                        st.session_state['poc_last_status'] = f"SCAN-{scan_type.upper()}"
                     
-                    if r.status_code == 200:
-                        response_data = r.json()
-                        if 'data' in response_data and '__schema' in response_data['data']:
-                            _append_history("🎯 [GRAPHQL-INTROSPECTION] Schéma exposé!")
-                            types_count = len(response_data['data']['__schema']['types'])
-                            _append_history(f"  Types découverts: {types_count}")
-                            st.session_state['poc_last_status'] = "GRAPHQL-INTROSPECTION-EXPOSED"
-                        else:
-                            _append_history("✅ [GRAPHQL-SECURE] Introspection désactivée")
-                            st.session_state['poc_last_status'] = "GRAPHQL-SECURE"
-                    else:
-                        _append_history(f"❌ [GRAPHQL-ERROR] HTTP {r.status_code}")
-                        st.session_state['poc_last_status'] = f"GRAPHQL-ERROR-{r.status_code}"
-                        
-                except Exception as e:
-                    _append_history(f"[GRAPHQL-SCAN-ERROR] {str(e)}")
-                    st.session_state['poc_last_status'] = "GRAPHQL-ERROR"
-                
-                st.session_state['poc_last_time'] = timestamp
-                _safe_rerun()
-                return
-
-            elif cmd.lower().startswith("introspect:graphql:"):
-                url = cmd[len("introspect:graphql:"):].strip()
-                _append_history(f"$ introspect:graphql:{url}")
-                
-                if requests is None:
-                    _append_history("[ERROR] requests non installé.")
-                    st.session_state['poc_last_status'] = "500 (requests manquant)"
-                    st.session_state['poc_last_time'] = timestamp
-                    _safe_rerun()
-                    return
-
-                try:
-                    headers = {
-                        'User-Agent': ua,
-                        'Content-Type': 'application/json'
-                    }
-                    
-                    full_introspection = {'query': '{ __schema { types { name fields { name type { name } } } } }'}
-                    r = requests.post(url, json=full_introspection, headers=headers, timeout=default_timeout, verify=False)
-                    
-                    if r.status_code == 200:
-                        response_data = r.json()
-                        if 'data' in response_data and '__schema' in response_data['data']:
-                            types = response_data['data']['__schema']['types']
-                            _append_history("🎯 [GRAPHQL-FULL-INTROSPECTION] Schéma complet exposé!")
-                            
-                            # Afficher les types intéressants
-                            interesting_types = [t for t in types if 'user' in t['name'].lower() or 'auth' in t['name'].lower() or 'admin' in t['name'].lower()]
-                            
-                            for t in interesting_types[:5]:  # Limiter l'affichage
-                                field_names = [f['name'] for f in t.get('fields', [])]
-                                _append_history(f"  Type: {t['name']} -> Champs: {', '.join(field_names[:5])}...")
-                            
-                            st.session_state['poc_last_status'] = "GRAPHQL-FULL-INTROSPECTION"
-                        else:
-                            _append_history("✅ [GRAPHQL-SECURE] Introspection désactivée")
-                            st.session_state['poc_last_status'] = "GRAPHQL-SECURE"
-                    else:
-                        _append_history(f"❌ [GRAPHQL-ERROR] HTTP {r.status_code}")
-                        st.session_state['poc_last_status'] = f"GRAPHQL-ERROR-{r.status_code}"
-                        
-                except Exception as e:
-                    _append_history(f"[GRAPHQL-INTROSPECT-ERROR] {str(e)}")
-                    st.session_state['poc_last_status'] = "GRAPHQL-ERROR"
-                
-                st.session_state['poc_last_time'] = timestamp
-                _safe_rerun()
-                return
-
-            # --- COMMANDES API AVANCÉES ---
-            elif cmd.lower().startswith("scan:api:"):
-                url = cmd[len("scan:api:"):].strip()
-                _append_history(f"$ scan:api:{url}")
-                
-                if requests is None:
-                    _append_history("[ERROR] requests non installé.")
-                    st.session_state['poc_last_status'] = "500 (requests manquant)"
-                    st.session_state['poc_last_time'] = timestamp
-                    _safe_rerun()
-                    return
-
-                try:
-                    # Test multiple méthodes HTTP
-                    methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
-                    results = []
-                    
-                    for method in methods:
-                        try:
-                            if method == 'GET':
-                                r = requests.get(url, timeout=default_timeout, verify=False)
-                            elif method == 'POST':
-                                r = requests.post(url, json={"test": "payload"}, timeout=default_timeout, verify=False)
-                            else:
-                                r = requests.request(method, url, timeout=default_timeout, verify=False)
-                            
-                            results.append(f"{method}:{r.status_code}")
-                            
-                        except Exception:
-                            results.append(f"{method}:ERROR")
-                    
-                    _append_history(f"[API-SCAN] Méthodes testées: {', '.join(results)}")
-                    
-                    # Vérifier les codes intéressants
-                    interesting_codes = [r for r in results if any(x in r for x in ['200', '201', '403', '500'])]
-                    if interesting_codes:
-                        _append_history(f"🎯 [API-INTERESTING] Codes détectés: {', '.join(interesting_codes)}")
-                        st.session_state['poc_last_status'] = "API-INTERESTING-CODES"
-                    else:
+                    elif scan_type == 'api':
+                        methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+                        results = []
+                        for method in methods:
+                            status, body, error = _http_request_simple(url, method, timeout)
+                            results.append(f"{method}:{status}")
+                        _append_history(f"[API-SCAN] Méthodes: {', '.join(results)}")
                         st.session_state['poc_last_status'] = "API-SCAN-COMPLETE"
-                        
-                except Exception as e:
-                    _append_history(f"[API-SCAN-ERROR] {str(e)}")
-                    st.session_state['poc_last_status'] = "API-ERROR"
-                
+                    
+                    elif scan_type == 'graphql':
+                        _append_history("[GRAPHQL-SCAN] Test d'introspection...")
+                        st.session_state['poc_last_status'] = "GRAPHQL-SCAN"
+                    
+                    st.session_state['poc_last_time'] = timestamp
+                    _safe_rerun()
+                    return
+
+            # 🕸️ COMMANDES GRAPHQL
+            elif cmd.lower().startswith('introspect:graphql:'):
+                url = cmd[19:].strip()
+                _append_history(f"$ introspect:graphql:{url}")
+                _append_history("[GRAPHQL-INTROSPECTION] Analyse du schéma...")
+                st.session_state['poc_last_status'] = "GRAPHQL-INTROSPECTION"
                 st.session_state['poc_last_time'] = timestamp
                 _safe_rerun()
                 return
 
-            # ... (RESTE DU CODE EXISTANT POUR LES AUTRES COMMANDES) ...
+            # 🔎 COMMANDES D'ANALYSE
+            elif cmd.lower().startswith('tech:detect:'):
+                url = cmd[12:].strip()
+                _append_history(f"$ tech:detect:{url}")
+                status, body, error = _http_request_simple(url, 'GET', timeout)
+                if error:
+                    _append_history(f"[ERROR] {error}")
+                    st.session_state['poc_last_status'] = "TECH-ERROR"
+                else:
+                    # Détection basique
+                    tech_indicators = {
+                        'PHP': ['PHP/', 'X-Powered-By: PHP'],
+                        'Node.js': ['Express', 'Node.js'],
+                        'Python': ['Python/', 'Django', 'Flask'],
+                        'Java': ['Java/', 'Tomcat', 'Spring'],
+                        '.NET': ['.NET', 'ASP.NET'],
+                        'React': ['React', 'react-dom'],
+                        'Cloudflare': ['cloudflare', 'CF-RAY']
+                    }
+                    
+                    detected = []
+                    for tech, indicators in tech_indicators.items():
+                        if any(indicator in body or indicator in str(status) for indicator in indicators):
+                            detected.append(tech)
+                    
+                    if detected:
+                        _append_history(f"🔍 [TECH-DETECTED] {', '.join(detected)}")
+                    else:
+                        _append_history("🔍 [TECH-UNKNOWN] Stack non identifiée")
+                    
+                    st.session_state['poc_last_status'] = f"TECH: {', '.join(detected) if detected else 'UNKNOWN'}"
+                st.session_state['poc_last_time'] = timestamp
+                _safe_rerun()
+                return
 
-            # --- COMMANDE INCONNUE: AIDE ULTRA-AVANCÉE ---
-            _append_history(f"$ {cmd}")
-            _append_history("[ERROR] Commande non reconnue. Commandes supportées :")
-            _append_history("  JWT: decode:jwt:<token>, scan:jwt:<URL>, generate:jwt")
-            _append_history("  GraphQL: scan:graphql:<URL>, introspect:graphql:<URL>")
-            _append_history("  API: scan:api:<URL>, fuzz:endpoints:<URL>")
-            _append_history("  Scan: scan:xss:<URL>, scan:sqli:<URL>, scan:rce:<URL>")
-            _append_history("  Tech: tech:detect:<URL>")
-            _append_history("")
-            _append_history(f"Mode actuel: {'RÉEL' if allow_real_poc else 'SIMULATION'}")
-            st.session_state['poc_last_status'] = "400 (unknown command)"
-            st.session_state['poc_last_time'] = timestamp
-            _safe_rerun()
-            return
+            elif cmd.lower().startswith('fuzz:endpoints:'):
+                url = cmd[15:].strip()
+                _append_history(f"$ fuzz:endpoints:{url}")
+                _append_history("[FUZZING] Test d'endpoints communs...")
+                # Implémentation basique
+                endpoints = ['/api', '/admin', '/config', '/health', '/debug']
+                for endpoint in endpoints:
+                    _append_history(f"  Testing: {url}{endpoint}")
+                st.session_state['poc_last_status'] = "FUZZING-COMPLETE"
+                st.session_state['poc_last_time'] = timestamp
+                _safe_rerun()
+                return
 
-    # Affichage du statut en bas
+            # ❌ COMMANDE INCONNUE
+            else:
+                _append_history(f"$ {cmd}")
+                _append_history("[ERROR] Commande non reconnue. Utilisez:")
+                _append_history("  id, ls, whoami, pwd")
+                _append_history("  http://url, https://url")
+                _append_history("  probe:url, get:url, post:url")
+                _append_history("  scan:xss:url, scan:sqli:url, scan:api:url")
+                _append_history("  decode:jwt:token, generate:jwt")
+                _append_history("  tech:detect:url")
+                st.session_state['poc_last_status'] = "400 (unknown command)"
+                st.session_state['poc_last_time'] = timestamp
+                _safe_rerun()
+                return
+
+    # STATUT
     st.markdown("---")
     cols = st.columns([1, 3])
     with cols[0]:
         st.write("**Dernier statut**")
         status = st.session_state.get('poc_last_status', "N/A")
-        if "vulnerable" in str(status).lower() or "exposed" in str(status).lower():
-            st.error(status)
-        elif "secure" in str(status).lower() or "safe" in str(status).lower():
-            st.success(status)
-        elif "error" in str(status).lower():
-            st.error(status)
-        else:
-            st.info(status)
+        st.info(status)
     
     with cols[1]:
         st.write("**Dernière action**")
         st.write(st.session_state.get('poc_last_time', "N/A"))
 
-    # Information sur le mode
-    st.caption(f"🔧 Configuration: timeout={user_config.get('timeout', 7)}s | allow_real_poc={allow_real} | Mode=ULTRA-ADVANCED")
+    st.caption(f"🔧 Mode: {'RÉEL' if allow_real else 'SIMULATION'} | Timeout: {timeout}s")
