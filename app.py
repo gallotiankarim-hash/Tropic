@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE PROPRE, MODULAIRE ET STABLE avec marge corrigée)
+# app.py (VERSION FINALE PROPRE, MODULAIRE ET STABLE avec marge corrigée et refonte UI)
 import streamlit as st
 import pandas as pd
 import json
@@ -82,10 +82,10 @@ def execute_post_scan_command(target_domain, command, output_lines):
 # ===============================================================================
 
 def load_user_config():
-    """Charge les options de configuration depuis la sidebar."""
+    """Charge les options de configuration depuis la sidebar, regroupées dans des expanders."""
     st.sidebar.header("⚙️ Configuration des Modules")
     
-    # --- Définition des Objectifs/Scope ---
+    # --- Définition des Objectifs/Scope (Reste critique et visible) ---
     st.sidebar.subheader("🎯 Objectifs du Pentest")
     pentest_goal = st.sidebar.text_area(
         "Scope / But Principal du Test",
@@ -94,21 +94,23 @@ def load_user_config():
         key="pentest_goal_input",
         help="Définissez clairement ce que le test doit découvrir ou valider."
     )
-    st.sidebar.markdown("---")
+    st.sidebar.divider() # Utilisation du séparateur moderne
     
-    st.sidebar.subheader("Général")
-    timeout = st.sidebar.slider("Délai d'attente (Timeout) en secondes", min_value=3, max_value=20, value=7, step=1, help="Durée maximale d'attente pour une réponse HTTP/S pour Recon et API Scan.")
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Module 1 (Recon)")
-    use_http_fallback = st.sidebar.checkbox("Utiliser Fallback HTTP (si HTTPS échoue)", value=True, help="Si cochée, le scan testera HTTP si HTTPS ne répond pas.")
-    st.sidebar.subheader("Module 2 (API Scan)")
-    custom_ua = st.sidebar.text_input("User Agent Personnalisé", value="TROPIC-ProAPI-Analyzer/2.1 (EthicalHacking)", help="Identifiant utilisé pour les requêtes HTTP/S dans le Module 2.")
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🌐 Post-Scan Executor")
-    post_scan_command = st.sidebar.text_input("Commande Terminal à Exécuter", value="echo Scan TROPIC terminé pour {TARGET}", help="Sera exécuté après tous les modules.")
+    # --- Paramètres Généraux (Regroupés) ---
+    with st.sidebar.expander("Général (Timeout / Fallback)"):
+        timeout = st.slider("Délai d'attente (Timeout) en secondes", min_value=3, max_value=20, value=7, step=1, help="Durée maximale d'attente pour une réponse HTTP/S pour Recon et API Scan.")
+        use_http_fallback = st.checkbox("Utiliser Fallback HTTP (si HTTPS échoue)", value=True, help="Si cochée, le scan testera HTTP si HTTPS ne répond pas.")
+
+    # --- Configuration Module 2 (Regroupée) ---
+    with st.sidebar.expander("Configuration Module 2 (API Scan)"):
+        custom_ua = st.text_input("User Agent Personnalisé", value="TROPIC-ProAPI-Analyzer/2.1 (EthicalHacking)", help="Identifiant utilisé pour les requêtes HTTP/S dans le Module 2.")
     
-    # --- Module 3 explicit force flag (FORCE TRUE by default)
-    st.sidebar.markdown("---")
+    # --- Post-Scan Executor (Regroupé) ---
+    with st.sidebar.expander("🌐 Post-Scan Executor"):
+        post_scan_command = st.text_input("Commande Terminal à Exécuter", value="echo Scan TROPIC terminé pour {TARGET}", help="Sera exécuté après tous les modules.")
+    
+    # --- Module 3 (Exploit / PoC) (Reste visible ou regroupé si nécessaire, ici conservé pour la clarté critique) ---
+    st.sidebar.divider()
     st.sidebar.subheader("Module 3 (Exploit / PoC)")
     allow_real_poc = st.sidebar.checkbox(
         "Autoriser l'exécution réelle (RCE) depuis la Console PoC (FORCÉ)",
@@ -130,7 +132,7 @@ def load_user_config():
 # ===============================================================================
 
 def display_recon_report(target):
-    st.subheader("📊 Module 1 : Résultat de la Reconnaissance")
+    # Retiré le st.subheader car il est dans l'onglet
     active_file = os.path.join("output", f"{target}_active_subdomains.txt")
     if os.path.exists(active_file):
         with open(active_file, 'r') as f:
@@ -139,13 +141,13 @@ def display_recon_report(target):
         df = pd.DataFrame(subdomains, columns=['Sous-Domaine Actif'])
         st.dataframe(df, use_container_width=True)
     else:
-        st.warning("Aucun fichier de cibles actives trouvé. Le scan a pu échouer.")
+        st.warning("Aucun fichier de cibles actives trouvé. Le scan a pu échouer. Lancez le Module 1.")
 
 def display_api_scan_report(target):
-    st.subheader("🛡️ Module 2 : Analyse Sécurité API/Headers")
+    # Retiré le st.subheader
     report_file = os.path.join("output", f"{target}_api_report.json")
     if not os.path.exists(report_file):
-        st.error("Rapport API non trouvé.")
+        st.error("Rapport API non trouvé. Lancez le Module 2.")
         return
 
     with open(report_file, 'r') as f:
@@ -158,21 +160,39 @@ def display_api_scan_report(target):
     main_report = report['scan_results'][0] 
     final_score = main_report.get('final_score', 0)
     
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        if final_score >= 80:
-            st.success(f"Score de Sécurité : **{final_score}/100** 🛡️", icon="✅")
-            st.markdown("*Niveau : **EXCELLENT**. Configuration robuste.*")
-        elif final_score >= 50:
-            st.warning(f"Score de Sécurité : **{final_score}/100** ⚠️", icon="🟡")
-            st.markdown("*Niveau : **MOYEN**. Des failles critiques nécessitent une action immédiate.*")
-        else:
-            st.error(f"Score de Sécurité : **{final_score}/100** ❌", icon="🚨")
-            st.markdown("*Niveau : **CRITIQUE**. Fuites d'informations importantes et/ou absence de mesures de sécurité de base.*")
+    # --- Affichage Visuel du Score Amélioré (Design) ---
+    st.markdown("#### Score de Sécurité Final")
+    col_score, col_info = st.columns([1, 2])
+    
+    with col_score:
+        # Utilisation de la structure Markdown/CSS pour un affichage Néon stylisé
+        color = "#00FF00" if final_score >= 80 else ("#FFFF00" if final_score >= 50 else "#FF0000")
+        level = "EXCELLENT" if final_score >= 80 else ("MOYEN" if final_score >= 50 else "CRITIQUE")
+        
+        st.markdown(f"""
+            <div style="text-align: center; border: 2px solid {color}; padding: 10px; border-radius: 5px; box-shadow: 0 0 5px {color}88;">
+                <p style="font-size: 0.9em; margin-bottom: 0; color: #FFFFFF;">Score TROPIC</p>
+                <p style="font-size: 3em; font-weight: bold; margin-top: 5px; margin-bottom: 5px; color: {color};">
+                    {final_score}<span style="font-size: 0.5em;">/100</span>
+                </p>
+                <p style="font-size: 0.8em; margin: 0; color: {color};">Niveau : **{level}**</p>
+            </div>
+        """, unsafe_allow_html=True)
         st.markdown(f"**Cible :** `{main_report['target_url']}`")
-    with col2:
-        penalty_value = SECURITY_SCORE_WEIGHTS.get('ENDPOINT_EXPOSED', 15)
-        st.markdown(f"**Pénalité par Endpoint Exposé (200 OK) :** -{penalty_value} points.")
+
+    with col_info:
+        st.markdown("#### Détails & Pénalités")
+        st.markdown(f"**Pénalité par Endpoint Exposé (200 OK) :** -{SECURITY_SCORE_WEIGHTS.get('ENDPOINT_EXPOSED', 15)} points.")
+        st.markdown(f"**Pénalité par Injection Vulnérable :** -{SECURITY_SCORE_WEIGHTS.get('INJECTION_VULNERABLE', 30)} points.")
+        st.markdown("---")
+        if final_score < 50:
+            st.error("Des failles critiques ont été identifiées. Voir les résultats des En-têtes ci-dessous.")
+        elif final_score < 80:
+            st.warning("Des failles moyennes nécessitent une attention immédiate.")
+        else:
+            st.success("La configuration de base des Headers est robuste.")
+
+
     findings = main_report['header_findings']
     if findings:
         st.markdown("#### Failles d'En-tête Détectées")
@@ -180,27 +200,30 @@ def display_api_scan_report(target):
         st.dataframe(df_findings[['severity', 'header', 'description']], use_container_width=True, hide_index=True)
     else:
         st.info("Aucun manquement critique ou divulgation d'en-tête de sécurité détecté.")
+        
     api_results = main_report['api_discovery']
     exposed_endpoints = [res for res in api_results if res['status'] == 200]
     st.markdown("#### Fuzzing d'Endpoints API")
     if exposed_endpoints:
-        st.warning(f"**{len(exposed_endpoints)} Endpoints Critiques exposés (200 OK)**")
+        st.error(f"**{len(exposed_endpoints)} Endpoints Critiques exposés (200 OK)**")
         df_exposed = pd.DataFrame(exposed_endpoints)
         st.dataframe(df_exposed[['endpoint', 'description']], use_container_width=True, hide_index=True)
     else:
         st.info("Aucun endpoint critique n'a répondu 200 OK lors du fuzzing.")
 
 def display_vuln_scan_report(target):
-    st.subheader("🚨 Module 3 : Rapport de Vulnérabilités Avancé")
+    # Retiré le st.subheader
     report_file = os.path.join("output", f"{target}_vulnerability_report.json")
     if not os.path.exists(report_file):
-        st.error("Rapport de vulnérabilités non trouvé.")
+        st.error("Rapport de vulnérabilités non trouvé. Lancez le Module 3.")
         return
     with open(report_file, 'r') as f:
         report = json.load(f)
     vulns = report['vulnerabilities']
     total_vulns = len(vulns)
+    
     st.metric(label="Vulnérabilités Totales Trouvées", value=total_vulns)
+    
     if total_vulns > 0:
         st.error(f"**{total_vulns}** découvertes de vulnérabilités enregistrées.")
         df_vulns = pd.DataFrame(vulns)
@@ -239,6 +262,17 @@ def main():
           font-size: 3em; 
           /* 💡 CORRECTION MARGE HAUTE du TITRE */
           margin-top: 0px !important; 
+        }
+        /* Style spécifique pour les onglets pour coller au thème */
+        .stTabs [data-testid="stTabContent"] {
+            padding: 10px 0; /* Réduit le padding interne des onglets */
+        }
+        .stTabs button {
+            color: #00FFFF !important;
+            border-bottom: 3px solid #00FFFF;
+            background-color: #1A1A2E !important;
+            box-shadow: 0 0 5px #00FFFF55;
+            margin-right: 5px;
         }
 
         /* AMÉLIORATION DE LA BARRE LATÉRALE (SIDEBAR) */
@@ -320,6 +354,11 @@ def main():
             max-height: 160px;
             border-radius: 6px;
         }
+        
+        /* Séparateur pour les champs de formulaire */
+        .stTextInput, .stSlider, .stCheckbox {
+            margin-bottom: 5px;
+        }
 
     </style>
     """, unsafe_allow_html=True)
@@ -357,20 +396,16 @@ def main():
     with col_content:
         gif_path = _find_banner_path()
 
-        # Le CSS de la bannière a été intégré dans le bloc CSS principal
-
         if gif_path and os.path.exists(gif_path):
             st.markdown('<div class="banner-container">', unsafe_allow_html=True)
             st.image(
                 gif_path, 
                 caption=None, 
-                # ✅ CORRECTION DE LA DEPRECIATION: Utilisation de use_container_width
                 use_container_width=True, 
                 output_format="GIF" 
             )
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            # Mise à jour du message d'erreur pour le nouveau chemin
             st.warning("⚠️ Bannière introuvable : place ton fichier GIF (ex: banner.gif) dans le dossier 'assets/' au même niveau que app.py.")
 
         # Titre Néon (la marge supérieure est réinitialisée par le CSS ci-dessus)
@@ -392,20 +427,17 @@ def main():
             </div>
         """, unsafe_allow_html=True)
 
-        # --- CHARGEMENT DE LA CONFIGURATION UTILISATEUR ---
+        # --- CHARGEMENT DE LA CONFIGURATION UTILISATEUR (Refonte Sidebar) ---
+        # La fonction load_user_config() a été modifiée pour utiliser st.expander
         user_config = load_user_config()
         
-        # ✅ CORRECTION UnboundLocalError: Initialiser all_logs avant tout bloc conditionnel.
         all_logs = [] 
-        
-        # Indicateur global de succès/échec pour les effets de fin
         scan_successful = True
 
         # --------------------------------------------------------------------------
-        # --- PERSISTANCE SESSION_STATE (INITIALISATION CLASSIQUE ET CORRIGÉE) ---
+        # --- PERSISTANCE SESSION_STATE (INITIALISATION) ---
         # --------------------------------------------------------------------------
         
-        # Initialise les clés nécessaires pour les modules principaux
         if 'module3_logs' not in st.session_state:
             st.session_state['module3_logs'] = ""
         if 'module3_elapsed' not in st.session_state:
@@ -415,22 +447,21 @@ def main():
         if 'module3_running' not in st.session_state:
             st.session_state['module3_running'] = False
             
-        # ✅ Clés nécessaires pour la console PoC (ancienne clé supprimée et remplacée par les nouvelles préfixées)
         if 'shell_cmd_history' in st.session_state:
             del st.session_state['shell_cmd_history']
             
         if 'shell_cmd_history_list' not in st.session_state:
-            st.session_state['shell_cmd_history_list'] = [] # Ancienne clé maintenue pour rétrocompatibilité dans le code utilisateur s'il existe
+            st.session_state['shell_cmd_history_list'] = []
         if 'current_shell_command_input' not in st.session_state:
-            st.session_state['current_shell_command_input'] = "" # Ancienne clé maintenue pour rétrocompatibilité
+            st.session_state['current_shell_command_input'] = ""
 
         # --- AFFICHAGE DU SCOPE ---
         st.markdown(f"**🎯 Objectif du Test :** _{user_config['pentest_goal']}_")
-        st.markdown("---")
-
+        st.divider() # Utilisation du séparateur moderne
+        
         # --- INPUT DOMAIN ---
         target_domain = st.text_input("Domaine Cible (Ex: votre-cible.com)", value="votre-cible.com")
-        st.markdown("---")
+        st.divider() # Utilisation du séparateur moderne
 
         # --- SÉLECTION DES MODULES ---
         st.sidebar.header("Options d'Exécution")
@@ -457,121 +488,114 @@ def main():
             os.makedirs("output", exist_ok=True)
             placeholder = st.empty()
             
+            # Définir les onglets pour les rapports AVANT l'exécution
+            tab_recon, tab_api, tab_vuln = st.tabs(["📊 Module 1: Reconnaissance", "🛡️ Module 2: Sécurité API", "🚨 Module 3: Vulnérabilités"])
+
             # 1. MODULE DE RECONNAISSANCE
             if run_recon_module:
                 with placeholder.status(f"Module 1: Exécution de la Reconnaissance sur **{target_domain}**...", expanded=True) as status:
                     log, time_elapsed = execute_and_capture(run_recon, target_domain, user_config, module_name="Module 1") 
                     all_logs.append(f"\n--- LOGS MODULE 1 ({time_elapsed:.2f}s) ---\n" + log)
                     status.update(label=f"✅ Module 1 (Recon) terminé en {time_elapsed:.2f}s", state="complete", expanded=False)
-                display_recon_report(target_domain)
-                st.markdown("---")
+                with tab_recon:
+                    display_recon_report(target_domain)
+                st.divider()
 
             # 2. MODULE API SCAN
             if run_api_module:
-                # La vérification de dépendance est plus logique ici si le Module 1 a été explicitement ignoré
-                if run_all and not run_recon_module:
-                    pass 
-                elif not run_all and not run_recon_module:
-                    # Si on ne run pas tout et que M2 est lancé seul, on doit vérifier la dépendance
-                    if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
-                         st.warning("⏩ Skipping Module 2 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
-                         scan_successful = False
-                         pass
-                
-                # Exécution réelle si la vérification de dépendance n'a pas causé un "pass"
-                if scan_successful:
+                # Vérification de dépendance
+                if (run_all or run_api_module) and not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
+                    st.warning("⏩ Skipping Module 2 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
+                    scan_successful = False
+                elif scan_successful: # Exécution réelle
                     with placeholder.status(f"Module 2: Exécution de l'Analyse API/Headers...", expanded=True) as status:
                         log, time_elapsed = execute_and_capture(run_api_scan, target_domain, user_config, module_name="Module 2")
                         all_logs.append(f"\n--- LOGS MODULE 2 ({time_elapsed:.2f}s) ---\n" + log)
                         status.update(label=f"✅ Module 2 (API Scan) terminé en {time_elapsed:.2f}s", state="complete", expanded=False)
-                    display_api_scan_report(target_domain)
-                    st.markdown("---")
+                    with tab_api:
+                        display_api_scan_report(target_domain)
+                    st.divider()
 
             # 3. MODULE VULN SCAN (Exploit_Adv.py) - LOGS EN TEMPS RÉEL (PERSISTENT)
             if run_vuln_module:
-                # La vérification de dépendance est faite ici aussi.
-                if run_all and not run_recon_module:
-                    pass
-                elif not run_all and not run_recon_module:
-                    if not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
-                         st.warning("⏩ Skipping Module 3 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
-                         scan_successful = False
-                         pass
-
-                if scan_successful:
+                # Vérification de dépendance
+                if (run_all or run_vuln_module) and not os.path.exists(os.path.join("output", f"{target_domain}_active_subdomains.txt")):
+                     st.warning("⏩ Skipping Module 3 : Le fichier des cibles actives est manquant. Lancez le Module 1 d'abord.")
+                     scan_successful = False
+                elif scan_successful: # Exécution réelle
                     
-                    st.subheader("💻 Terminal d'Exploitation en Temps Réel (Logs)")
-                    
-                    col_r1, col_r2 = st.columns([4, 1])
-                    with col_r2:
-                        # Correction: Utilisation de st.rerun() au lieu de st.experimental_rerun()
-                        if st.button("🔁 Relancer Module 3 (Vuln. Scan)"):
-                            st.session_state['module3_logs'] = ""
-                            st.session_state['module3_elapsed'] = 0.0
-                            st.session_state['module3_run_id'] = None
-                            st.session_state['module3_running'] = False
-                            st.rerun() 
-
-                    if st.session_state.get('module3_run_id') == target_domain and st.session_state.get('module3_logs') and not st.session_state.get('module3_running'):
-                        elapsed = st.session_state.get('module3_elapsed', 0.0)
-                        st.success(f"Module 3 : Dernier scan pour {target_domain} (terminé en {elapsed:.2f}s).")
-                        st.code(st.session_state['module3_logs'], language='bash')
-                        display_vuln_scan_report(target_domain)
-                        st.markdown("---")
-                    elif st.session_state.get('module3_running', False) and st.session_state.get('module3_run_id') == target_domain:
-                        st.info("Un scan Module 3 est en cours (sous cette session). Affichage des logs en direct.")
-                        st.code(st.session_state['module3_logs'], language='bash')
-                    else:
-                        with placeholder.status(f"Module 3: Préparation du Scan de Vulnérabilités Avancé sur **{target_domain}**...", expanded=True) as status:
-                            
-                            progress_bar = status.progress(0, text="Initialisation...")
-                            status_log_area = status.empty() 
-                            
-                            start_time = datetime.now()
-                            st.session_state['module3_running'] = True
-                            st.session_state['module3_run_id'] = target_domain
-                            st.session_state['module3_logs'] = "" 
-
-                            try:
-                                scan_generator = run_vulnerability_scan(target_domain, user_config)
-                                log_area_main = st.empty() 
+                    with tab_vuln:
+                        st.subheader("💻 Terminal d'Exploitation en Temps Réel (Logs)")
+                        
+                        col_r1, col_r2 = st.columns([4, 1])
+                        with col_r2:
+                            if st.button("🔁 Relancer Module 3 (Vuln. Scan)", key="rerun_mod3"):
+                                st.session_state['module3_logs'] = ""
+                                st.session_state['module3_elapsed'] = 0.0
+                                st.session_state['module3_run_id'] = None
+                                st.session_state['module3_running'] = False
+                                st.rerun() 
                                 
-                                for log_line in scan_generator:
-                                    
-                                    try:
-                                        if isinstance(log_line, str) and log_line.startswith("[STATE]"):
-                                            parts = log_line[7:].strip().split('/')
-                                            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
-                                                completed = int(parts[0])
-                                                total = int(parts[1])
-                                                percent_complete = completed / total if total > 0 else 0.0
-                                                progress_bar.progress(percent_complete, text=f"Scanning... {completed}/{total} cibles.")
-                                                status_log_area.write(f"Avancement: {completed} de {total} cibles...")
-                                            else:
-                                                status_log_area.write(log_line[7:].strip())
-                                        else:
-                                            st.session_state['module3_logs'] = (st.session_state.get('module3_logs','') + "\n" + str(log_line)).strip()
-                                            log_area_main.code(st.session_state['module3_logs'], language='bash') 
-                                    except Exception as e:
-                                        st.session_state['module3_logs'] = (st.session_state.get('module3_logs','') + "\n" + f"[LOG-PROCESS-ERROR] {str(e)}").strip()
-                                        log_area_main.code(st.session_state['module3_logs'], language='bash')
-
-                            except Exception as e:
-                                # Erreur critique du module lui-même (ex: ImportError dans un sous-module)
-                                st.error(f"Erreur critique lors du lancement du Module 3: {e}")
-                                scan_successful = False
-                            
-                            elapsed_time = (datetime.now() - start_time).total_seconds()
-                            
-                            st.session_state['module3_elapsed'] = elapsed_time
-                            st.session_state['module3_running'] = False
-                            
-                            status.update(label=f"✅ Module 3 (Vuln. Scan) terminé en {elapsed_time:.2f}s", state="complete", expanded=False)
-
-                            all_logs.append(f"\n--- LOGS MODULE 3 ({elapsed_time:.2f}s) ---\n" + st.session_state.get('module3_logs', ''))
-                            
+                        # Affichage du dernier résultat si déjà terminé
+                        if st.session_state.get('module3_run_id') == target_domain and st.session_state.get('module3_logs') and not st.session_state.get('module3_running'):
+                            elapsed = st.session_state.get('module3_elapsed', 0.0)
+                            st.success(f"Module 3 : Dernier scan pour {target_domain} (terminé en {elapsed:.2f}s).")
+                            st.code(st.session_state['module3_logs'], language='bash')
                             display_vuln_scan_report(target_domain)
-                            st.markdown("---")
+                            st.divider()
+                        elif st.session_state.get('module3_running', False) and st.session_state.get('module3_run_id') == target_domain:
+                            st.info("Un scan Module 3 est en cours (sous cette session). Affichage des logs en direct.")
+                            st.code(st.session_state['module3_logs'], language='bash')
+                        else: # Lancement du scan
+                            with placeholder.status(f"Module 3: Préparation du Scan de Vulnérabilités Avancé sur **{target_domain}**...", expanded=True) as status:
+                                
+                                progress_bar = status.progress(0, text="Initialisation...")
+                                status_log_area = status.empty() 
+                                
+                                start_time = datetime.now()
+                                st.session_state['module3_running'] = True
+                                st.session_state['module3_run_id'] = target_domain
+                                st.session_state['module3_logs'] = "" 
+
+                                try:
+                                    scan_generator = run_vulnerability_scan(target_domain, user_config)
+                                    log_area_main = st.empty() 
+                                    
+                                    for log_line in scan_generator:
+                                        
+                                        try:
+                                            if isinstance(log_line, str) and log_line.startswith("[STATE]"):
+                                                parts = log_line[7:].strip().split('/')
+                                                if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                                                    completed = int(parts[0])
+                                                    total = int(parts[1])
+                                                    percent_complete = completed / total if total > 0 else 0.0
+                                                    progress_bar.progress(percent_complete, text=f"Scanning... {completed}/{total} cibles.")
+                                                    status_log_area.write(f"Avancement: {completed} de {total} cibles...")
+                                                else:
+                                                    status_log_area.write(log_line[7:].strip())
+                                            else:
+                                                st.session_state['module3_logs'] = (st.session_state.get('module3_logs','') + "\n" + str(log_line)).strip()
+                                                log_area_main.code(st.session_state['module3_logs'], language='bash') 
+                                        except Exception as e:
+                                            st.session_state['module3_logs'] = (st.session_state.get('module3_logs','') + "\n" + f"[LOG-PROCESS-ERROR] {str(e)}").strip()
+                                            log_area_main.code(st.session_state['module3_logs'], language='bash')
+
+                                except Exception as e:
+                                    st.error(f"Erreur critique lors du lancement du Module 3: {e}")
+                                    scan_successful = False
+                                
+                                elapsed_time = (datetime.now() - start_time).total_seconds()
+                                
+                                st.session_state['module3_elapsed'] = elapsed_time
+                                st.session_state['module3_running'] = False
+                                
+                                status.update(label=f"✅ Module 3 (Vuln. Scan) terminé en {elapsed_time:.2f}s", state="complete", expanded=False)
+
+                                all_logs.append(f"\n--- LOGS MODULE 3 ({elapsed_time:.2f}s) ---\n" + st.session_state.get('module3_logs', ''))
+                                
+                                display_vuln_scan_report(target_domain)
+                                st.divider()
             
             
             # 4. POST-SCAN EXECUTOR
@@ -592,14 +616,14 @@ def main():
 
         
         # =======================================================
-        # 5. CONSOLE PoC (external) - AVEC ESPACEMENT CORRIGÉ
+        # 5. CONSOLE PoC (external)
         # =======================================================
         
         # Ajout des colonnes pour l'espacement: 1 (gauche), 3 (contenu), 1 (droite)
         col_spacer_left, col_content, col_spacer_right = st.columns([1, 3, 1])
 
         with col_content:
-            st.markdown("---")
+            st.divider() # Utilisation du séparateur moderne
 
             # --- Prépare les clefs session_state dédiées à la console PoC pour éviter collisions ---
             if 'poc_shell_cmd_history_list' not in st.session_state:
@@ -637,11 +661,11 @@ def main():
                         pass
 
             # --- Fin de la console PoC ---
-            st.markdown("---")
+            st.divider() # Utilisation du séparateur moderne
 
             
         # Section de Documentation Éthique et Méthodologie
-        st.markdown("---")
+        st.divider() # Utilisation du séparateur moderne
         
         with st.expander("Méthodologie TROPIC : Détails du Score de Sécurité et Éthique"):
             st.markdown("""
