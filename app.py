@@ -1,4 +1,4 @@
-# app.py (VERSION FINALE PROPRE, MODULAIRE ET STABLE avec marge corrigée et refonte UI)
+# app.py (VERSION FINALE PROPRE, MODULAIRE ET STABLE)
 import streamlit as st
 import pandas as pd
 import json
@@ -241,11 +241,11 @@ def display_vuln_scan_report(target):
     
     if total_vulns > 0:
         st.error(f"**{total_vulns}** découvertes de vulnérabilités enregistrées.")
-        df_vulns = pd.DataFrame(vulns)
+        df = pd.DataFrame(vulns)
         display_cols = ['severity', 'target', 'title', 'remediation']
-        st.dataframe(df_vulns.sort_values(by='severity', ascending=False)[display_cols], use_container_width=True, hide_index=True)
+        st.dataframe(df.sort_values(by='severity', ascending=False)[display_cols], use_container_width=True, hide_index=True)
         with st.expander("Voir les recommandations de remédiation détaillées"):
-            for title, remediation in df_vulns[['title', 'remediation']].drop_duplicates().values:
+            for title, remediation in df[['title', 'remediation']].drop_duplicates().values:
                 st.markdown(f"**{title}**\n> *Remédiation :* {remediation}\n")
     else:
         st.info("Aucune vulnérabilité n'a été trouvée.")
@@ -286,12 +286,9 @@ def display_logic_report(report_data):
             icon = "❌" if summary['vulnerable'] else ("✅" if summary['status'] not in [429, 400] else "⚠️")
             st.markdown(f"{icon} **{summary['name']}** (Status final: `{summary['status']}`)")
             
-# 💡 NOUVELLE FONCTION D'UTILITÉ POUR NETTOYER LA CHAÎNE (Nécessaire après le diagnostic des logs)
 def clean_target_domain(domain: str) -> str:
     """Retire les préfixes http/https et le chemin pour n'obtenir que le domaine brut."""
-    # Retire http(s)://
     domain = re.sub(r'^https?://', '', domain)
-    # Retire tout chemin/slash final
     domain = domain.split('/')[0]
     return domain
 
@@ -540,8 +537,8 @@ def main():
 
         # --- SÉLECTION DES MODULES ---
         st.sidebar.header("Options d'Exécution")
-        # MISE À JOUR : Ajout du Module 4 au mode séquentiel
-        run_all = st.sidebar.checkbox("Exécuter les 4 Modules en Séquence", value=False, help="Inclut Recon, API Scan, Vuln Scan et Logique Métier.")
+        # 🚨 MISE À JOUR : Définit 'value=True' pour cocher par défaut
+        run_all = st.sidebar.checkbox("Exécuter les 4 Modules en Séquence", value=True, help="Inclut Recon, API Scan, Vuln Scan et Logique Métier.")
         
         if not run_all:
             st.sidebar.markdown("Ou sélectionner un module unique :")
@@ -560,7 +557,6 @@ def main():
         # MISE À JOUR : Ajout de run_logic_module à la condition
         if run_recon_module or run_api_module or run_vuln_module or run_logic_module: 
             
-            # Vérification si la cible est vide AVANT de lancer l'exécution
             if not target_domain or target_domain.strip() == "":
                 st.error("Veuillez entrer un domaine cible valide.")
                 st.stop()
