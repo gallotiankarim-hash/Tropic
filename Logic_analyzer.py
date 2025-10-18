@@ -1,7 +1,98 @@
-# Logic_analyzer.py (Partie à modifier : la fonction run_logic_analysis)
+# Logic_analyzer.py
 
-# ... (tous les imports et classes restent les mêmes) ...
-# ... (toutes les fonctions de simulation restent les mêmes) ...
+import time
+import random
+import json
+from datetime import datetime
+# 💡 CORRECTION: Ajout de l'importation du module 'typing' pour les annotations de type
+from typing import Dict, Any, List, Tuple 
+
+# ===============================================================================
+#                             CLASSES DE MODÉLISATION ET D'ÉTAT
+# ===============================================================================
+
+class UserContext:
+    """Modélise l'état d'un utilisateur durant le test (simule le navigateur)."""
+    def __init__(self, username: str, is_admin: bool = False):
+        self.username = username
+        self.is_admin = is_admin
+        self.session_id: str = f"SESSION_{random.randint(10000, 99999)}"
+        # L'admin a souvent l'ID 1 ou une valeur basse
+        self.user_db_id: str = str(random.randint(2000, 3000)) if not is_admin else "1" 
+        self.csrf_token: str = f"CSRF_{random.randint(10000, 99999)}"
+        self.logged_in: bool = False
+        self.last_status: int = 0
+
+class LogicTestStep:
+    """Définit une seule étape du workflow d'abus."""
+    def __init__(self, name: str, endpoint: str, method: str, expected_status: int, abuse_payload: Dict[str, Any], fail_msg: str):
+        self.name = name
+        self.endpoint = endpoint
+        self.method = method
+        self.expected_status = expected_status
+        self.abuse_payload = abuse_payload
+        self.fail_msg = fail_msg
+        self.is_vulnerable: bool = False
+        self.response_status: int = 0
+        self.response_snippet: str = ""
+
+# Simule une base de données de jetons et d'utilisateurs (utilisée par les fonctions de simulation)
+USER_DB = {
+    "user_a_id": "1001",
+    "user_b_id": "1002"
+}
+
+# ===============================================================================
+#                             SIMULATION DES COMMUNICATIONS
+# ===============================================================================
+
+def _simulate_network_request(context: UserContext, step: LogicTestStep) -> Tuple[int, str]:
+    """
+    Simule une requête HTTP vers un endpoint, en appliquant le contexte de session.
+    Retourne le statut HTTP simulé et un message de réponse.
+    """
+    time.sleep(0.05) # Simule le délai réseau
+    
+    # 1. Vérification d'Authentification / Session
+    if not context.logged_in:
+        return 401, "ERR: Non authentifié."
+
+    # 2. Simulation de la vulnérabilité IDOR (Insecure Direct Object Reference)
+    if step.name == "Abus IDOR: Tente de modifier le compte d'une autre victime":
+        target_id = step.abuse_payload.get('target_user_id')
+        
+        # Le test IDOR est réussi (Status 200) si l'ID d'une autre victime peut être manipulé.
+        if target_id != context.user_db_id and random.random() < 0.2: # 20% de chance de trouver une vulnérabilité (IDOR)
+            context.last_status = 200
+            step.is_vulnerable = True
+            return 200, f"⚠️ SUCCESS: Données de l'utilisateur {target_id} modifiées. IDOR confirmé."
+        
+        # Sécurité correcte (Status 403)
+        return 403, f"SAFE: Accès refusé à l'ID {target_id}. L'ID de session {context.user_db_id} ne correspond pas."
+
+    # 3. Simulation de la vulnérabilité d'Escalade de Privilèges
+    if step.name == "Escalade: Tente d'accéder à l'API Admin":
+        if not context.is_admin and random.random() < 0.1: # 10% de chance d'escalade
+            context.last_status = 200
+            step.is_vulnerable = True
+            return 200, "⚠️ SUCCESS: Endpoint Admin accessible en tant qu'utilisateur standard."
+        
+        # Sécurité correcte (Status 403)
+        return 403, "SAFE: Accès Admin refusé. Privilèges insuffisants."
+
+    # 4. Simulation de la vulnérabilité de Surcharge de Limite (Rate Limiting Abuse)
+    if step.name == "Abus de limite: Tente d'envoyer 100 requêtes en 1s":
+        if random.random() < 0.15: # 15% de chance de faille de limite
+            context.last_status = 200
+            step.is_vulnerable = True
+            return 200, "⚠️ SUCCESS: 100 inscriptions sans blocage (Absence de Rate Limiting)."
+        
+        # Sécurité correcte (Status 429 - Too Many Requests)
+        return 429, "SAFE: Limite de débit atteinte. Requête bloquée (429)."
+
+
+    # Par défaut, succès de l'étape sans abus
+    return step.expected_status, "Simulation réseau réussie.", False
 
 # ===============================================================================
 #                          FONCTION D'EXÉCUTION PRINCIPALE
@@ -20,7 +111,6 @@ def run_logic_analysis(target_domain: str, config: Dict[str, Any]):
     victim_user_id = "5005" # ID arbitraire d'un utilisateur cible
 
     # Définition du workflow de test (longue structure)
-    # ... (Le code du workflow reste le même) ...
     workflow: List[LogicTestStep] = [
         # Étape 1: Connexion de l'attaquant (Préparation)
         LogicTestStep(
@@ -147,4 +237,3 @@ def run_logic_analysis(target_domain: str, config: Dict[str, Any]):
     
     # 5. Renvoyer le rapport final (ceci est capturé par l'exception StopIteration dans app.py)
     return report
-
