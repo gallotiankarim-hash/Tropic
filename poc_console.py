@@ -1,4 +1,4 @@
-# poc_console.py (VERSION ULTRA-COMPLÈTE - TOUTES COMMANDES)
+# poc_console.py (VERSION ULTRA-COMPLÈTE CORRIGÉE)
 import streamlit as st
 from datetime import datetime
 import time
@@ -236,8 +236,12 @@ def render_poc_console(target_domain: str, user_config: dict):
     payload_gen = AdvancedPayloadGenerator(target_domain)
     jwt_analyzer = JWTAnalyzer()
     
-    # Affichage du mode
+    # Configuration
+    timeout_config = user_config.get('timeout', 10)
+    ua_config = user_config.get('user_agent', "TROPIC-Scanner/1.0")
     allow_real = user_config.get('allow_real_poc', False)
+    
+    # Affichage du mode
     mode_text = "🔴 **MODE RÉEL**" if allow_real else "🟢 **MODE SIMULATION**"
     st.info(mode_text)
 
@@ -306,10 +310,6 @@ def render_poc_console(target_domain: str, user_config: dict):
                 st.warning("Commande vide.")
                 return
 
-            # Configuration
-            timeout = user_config.get('timeout', 10)
-            ua = user_config.get('user_agent', "TROPIC-Scanner/1.0")
-
             # ===============================================================================
             #                          TOUTES LES COMMANDES IMPLÉMENTÉES
             # ===============================================================================
@@ -318,7 +318,7 @@ def render_poc_console(target_domain: str, user_config: dict):
             if cmd in ['id', 'ls', 'whoami', 'pwd']:
                 _append_history(f"$ {cmd}")
                 if allow_real:
-                    stdout, stderr, returncode = _execute_local_command(cmd, timeout)
+                    stdout, stderr, returncode = _execute_local_command(cmd, timeout_config)
                     if stdout:
                         _append_history(stdout)
                     if stderr:
@@ -342,7 +342,7 @@ def render_poc_console(target_domain: str, user_config: dict):
                 local_cmd = cmd[6:].strip()
                 _append_history(f"$ {local_cmd}")
                 if allow_real:
-                    stdout, stderr, returncode = _execute_local_command(local_cmd, timeout)
+                    stdout, stderr, returncode = _execute_local_command(local_cmd, timeout_config)
                     if stdout:
                         _append_history(stdout)
                     if stderr:
@@ -358,7 +358,7 @@ def render_poc_console(target_domain: str, user_config: dict):
             # 🌐 COMMANDES HTTP SIMPLES
             elif cmd.startswith('http://') or cmd.startswith('https://'):
                 _append_history(f"$ {cmd}")
-                status, body, error = _http_request_simple(cmd, 'GET', timeout)
+                status, body, error = _http_request_simple(cmd, 'GET', timeout_config)
                 if error:
                     _append_history(f"[ERROR] {error}")
                     st.session_state['poc_last_status'] = "HTTP-ERROR"
@@ -375,7 +375,7 @@ def render_poc_console(target_domain: str, user_config: dict):
                 if len(parts) == 2:
                     method, url = parts[0].upper(), parts[1].strip()
                     _append_history(f"$ {method} {url}")
-                    status, body, error = _http_request_simple(url, method, timeout)
+                    status, body, error = _http_request_simple(url, method, timeout_config)
                     if error:
                         _append_history(f"[ERROR] {error}")
                         st.session_state['poc_last_status'] = f"{method}-ERROR"
@@ -393,7 +393,7 @@ def render_poc_console(target_domain: str, user_config: dict):
                 _append_history(f"$ probe:{url}")
                 token = f"TROPIC_PROBE_{int(time.time())}"
                 full_url = f"{url}?input={token}&q={token}&search={token}"
-                status, body, error = _http_request_simple(full_url, 'GET', timeout)
+                status, body, error = _http_request_simple(full_url, 'GET', timeout_config)
                 if error:
                     _append_history(f"[ERROR] {error}")
                     st.session_state['poc_last_status'] = "PROBE-ERROR"
@@ -430,9 +430,25 @@ def render_poc_console(target_domain: str, user_config: dict):
             elif cmd.lower().startswith('scan:jwt:'):
                 url = cmd[9:].strip()
                 _append_history(f"$ scan:jwt:{url}")
-                # Implémentation simplifiée
-                _append_history("[JWT-SCAN] Test des vulnérabilités JWT...")
-                st.session_state['poc_last_status'] = "JWT-SCAN-COMPLETE"
+                # Test avec différents tokens JWT
+                test_jwts = jwt_analyzer.generate_test_jwts()
+                vulnerabilities = []
+                
+                for vuln_type, test_token in test_jwts.items():
+                    headers = {'Authorization': f'Bearer {test_token}', 'User-Agent': ua_config}
+                    status, body, error = _http_request_simple(url, 'GET', timeout_config, headers)
+                    
+                    if status == 200:
+                        vulnerabilities.append(vuln_type)
+                        _append_history(f"🎯 [JWT-VULN] {vuln_type} accepté!")
+                    else:
+                        _append_history(f"✅ [JWT-SAFE] {vuln_type} rejeté (HTTP {status})")
+                
+                if vulnerabilities:
+                    st.session_state['poc_last_status'] = f"JWT-VULN: {', '.join(vulnerabilities)}"
+                else:
+                    st.session_state['poc_last_status'] = "JWT-SECURE"
+                
                 st.session_state['poc_last_time'] = timestamp
                 _safe_rerun()
                 return
@@ -457,21 +473,46 @@ def render_poc_console(target_domain: str, user_config: dict):
                     
                     if scan_type in ['xss', 'sqli', 'rce', 'ssti']:
                         payload = payload_gen.generate_contextual_payload(scan_type)
-                        _append_history(f"[SCAN-{scan_type.upper()}] Payload: {payload}")
-                        st.session_state['poc_last_status'] = f"SCAN-{scan_type.upper()}"
+                        test_url = f"{url}?input={payload}&q={payload}"
+                        status, body, error = _http_request_simple(test_url, 'GET', timeout_config)
+                        
+                        if error:
+                            _append_history(f"[SCAN-ERROR] {error}")
+                        elif payload in body:
+                            _append_history(f"🎯 [VULNERABLE] {scan_type.upper()} détecté!")
+                            st.session_state['poc_last_status'] = f"VULN-{scan_type.upper()}"
+                        else:
+                            _append_history(f"✅ [SAFE] {scan_type.upper()} non détecté")
+                            st.session_state['poc_last_status'] = f"SAFE-{scan_type.upper()}"
                     
                     elif scan_type == 'api':
                         methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
                         results = []
                         for method in methods:
-                            status, body, error = _http_request_simple(url, method, timeout)
+                            status, body, error = _http_request_simple(url, method, timeout_config)
                             results.append(f"{method}:{status}")
                         _append_history(f"[API-SCAN] Méthodes: {', '.join(results)}")
-                        st.session_state['poc_last_status'] = "API-SCAN-COMPLETE"
+                        
+                        # Vérifier les codes intéressants
+                        interesting = [r for r in results if any(x in r for x in ['200', '201', '403', '500'])]
+                        if interesting:
+                            _append_history(f"🎯 [API-INTERESTING] Codes: {', '.join(interesting)}")
+                            st.session_state['poc_last_status'] = "API-INTERESTING"
+                        else:
+                            st.session_state['poc_last_status'] = "API-SCAN-COMPLETE"
                     
                     elif scan_type == 'graphql':
-                        _append_history("[GRAPHQL-SCAN] Test d'introspection...")
-                        st.session_state['poc_last_status'] = "GRAPHQL-SCAN"
+                        headers = {'Content-Type': 'application/json', 'User-Agent': ua_config}
+                        query = {'query': '{ __schema { types { name } } }'}
+                        
+                        # Essayer POST
+                        status, body, error = _http_request_simple(url, 'POST', timeout_config, headers)
+                        if status == 200 and 'data' in body:
+                            _append_history("🎯 [GRAPHQL-INTROSPECTION] Schéma exposé!")
+                            st.session_state['poc_last_status'] = "GRAPHQL-EXPOSED"
+                        else:
+                            _append_history("✅ [GRAPHQL-SECURE] Introspection non disponible")
+                            st.session_state['poc_last_status'] = "GRAPHQL-SECURE"
                     
                     st.session_state['poc_last_time'] = timestamp
                     _safe_rerun()
@@ -481,8 +522,40 @@ def render_poc_console(target_domain: str, user_config: dict):
             elif cmd.lower().startswith('introspect:graphql:'):
                 url = cmd[19:].strip()
                 _append_history(f"$ introspect:graphql:{url}")
-                _append_history("[GRAPHQL-INTROSPECTION] Analyse du schéma...")
-                st.session_state['poc_last_status'] = "GRAPHQL-INTROSPECTION"
+                
+                headers = {'Content-Type': 'application/json', 'User-Agent': ua_config}
+                full_query = {'query': '{ __schema { types { name fields { name type { name } } } } }'}
+                
+                status, body, error = _http_request_simple(url, 'POST', timeout_config, headers)
+                if error:
+                    _append_history(f"[GRAPHQL-ERROR] {error}")
+                    st.session_state['poc_last_status'] = "GRAPHQL-ERROR"
+                elif status == 200:
+                    try:
+                        data = json.loads(body)
+                        if 'data' in data and '__schema' in data['data']:
+                            types = data['data']['__schema']['types']
+                            _append_history("🎯 [GRAPHQL-INTROSPECTION] Schéma complet exposé!")
+                            
+                            # Afficher les types intéressants
+                            interesting_types = [t for t in types if any(keyword in t['name'].lower() 
+                                                                       for keyword in ['user', 'auth', 'admin', 'config'])]
+                            
+                            for t in interesting_types[:5]:
+                                fields = [f['name'] for f in t.get('fields', [])[:3]]
+                                _append_history(f"  {t['name']}: {', '.join(fields)}...")
+                            
+                            st.session_state['poc_last_status'] = f"GRAPHQL-{len(types)}-TYPES"
+                        else:
+                            _append_history("✅ [GRAPHQL-SECURE] Introspection désactivée")
+                            st.session_state['poc_last_status'] = "GRAPHQL-SECURE"
+                    except:
+                        _append_history("❌ [GRAPHQL-INVALID] Réponse invalide")
+                        st.session_state['poc_last_status'] = "GRAPHQL-INVALID"
+                else:
+                    _append_history(f"❌ [GRAPHQL-ERROR] HTTP {status}")
+                    st.session_state['poc_last_status'] = f"GRAPHQL-ERROR-{status}"
+                
                 st.session_state['poc_last_time'] = timestamp
                 _safe_rerun()
                 return
@@ -491,25 +564,29 @@ def render_poc_console(target_domain: str, user_config: dict):
             elif cmd.lower().startswith('tech:detect:'):
                 url = cmd[12:].strip()
                 _append_history(f"$ tech:detect:{url}")
-                status, body, error = _http_request_simple(url, 'GET', timeout)
+                status, body, error = _http_request_simple(url, 'GET', timeout_config)
                 if error:
                     _append_history(f"[ERROR] {error}")
                     st.session_state['poc_last_status'] = "TECH-ERROR"
                 else:
                     # Détection basique
                     tech_indicators = {
-                        'PHP': ['PHP/', 'X-Powered-By: PHP'],
-                        'Node.js': ['Express', 'Node.js'],
-                        'Python': ['Python/', 'Django', 'Flask'],
-                        'Java': ['Java/', 'Tomcat', 'Spring'],
-                        '.NET': ['.NET', 'ASP.NET'],
-                        'React': ['React', 'react-dom'],
-                        'Cloudflare': ['cloudflare', 'CF-RAY']
+                        'PHP': ['PHP/', 'X-Powered-By: PHP', '.php'],
+                        'Node.js': ['Express', 'Node.js', 'X-Powered-By: Express'],
+                        'Python': ['Python/', 'Django', 'Flask', 'Werkzeug'],
+                        'Java': ['Java/', 'Tomcat', 'Spring', 'JSP'],
+                        '.NET': ['.NET', 'ASP.NET', 'X-Powered-By: ASP.NET'],
+                        'React': ['React', 'react-dom', 'next.js'],
+                        'Cloudflare': ['cloudflare', 'CF-RAY', 'Server: cloudflare'],
+                        'Nginx': ['nginx', 'Server: nginx'],
+                        'Apache': ['Apache', 'Server: Apache']
                     }
                     
                     detected = []
+                    full_text = body + str(status)
+                    
                     for tech, indicators in tech_indicators.items():
-                        if any(indicator in body or indicator in str(status) for indicator in indicators):
+                        if any(indicator.lower() in full_text.lower() for indicator in indicators):
                             detected.append(tech)
                     
                     if detected:
@@ -525,12 +602,34 @@ def render_poc_console(target_domain: str, user_config: dict):
             elif cmd.lower().startswith('fuzz:endpoints:'):
                 url = cmd[15:].strip()
                 _append_history(f"$ fuzz:endpoints:{url}")
-                _append_history("[FUZZING] Test d'endpoints communs...")
-                # Implémentation basique
-                endpoints = ['/api', '/admin', '/config', '/health', '/debug']
-                for endpoint in endpoints:
-                    _append_history(f"  Testing: {url}{endpoint}")
-                st.session_state['poc_last_status'] = "FUZZING-COMPLETE"
+                
+                endpoints = [
+                    '/api', '/api/v1', '/api/v2', '/api/v3',
+                    '/admin', '/admin/login', '/admin/dashboard',
+                    '/config', '/config.json', '/.env', '/.git',
+                    '/health', '/status', '/metrics', '/debug',
+                    '/graphql', '/graphiql', '/playground',
+                    '/phpmyadmin', '/mysql', '/db', '/database'
+                ]
+                
+                found_endpoints = []
+                for endpoint in endpoints[:10]:  # Limiter pour performance
+                    test_url = url.rstrip('/') + endpoint
+                    status, body, error = _http_request_simple(test_url, 'GET', 5)  # Timeout court
+                    
+                    if status in [200, 201, 301, 302]:
+                        found_endpoints.append(f"{endpoint}:{status}")
+                        _append_history(f"  ✅ {endpoint} -> HTTP {status}")
+                    elif status not in [404, 403]:
+                        _append_history(f"  ⚠️  {endpoint} -> HTTP {status}")
+                
+                if found_endpoints:
+                    _append_history(f"🎯 [ENDPOINTS-FOUND] {len(found_endpoints)} endpoints découverts")
+                    st.session_state['poc_last_status'] = f"FUZZ-FOUND-{len(found_endpoints)}"
+                else:
+                    _append_history("🔍 [ENDPOINTS-NONE] Aucun endpoint découvert")
+                    st.session_state['poc_last_status'] = "FUZZ-NONE"
+                
                 st.session_state['poc_last_time'] = timestamp
                 _safe_rerun()
                 return
@@ -544,7 +643,7 @@ def render_poc_console(target_domain: str, user_config: dict):
                 _append_history("  probe:url, get:url, post:url")
                 _append_history("  scan:xss:url, scan:sqli:url, scan:api:url")
                 _append_history("  decode:jwt:token, generate:jwt")
-                _append_history("  tech:detect:url")
+                _append_history("  tech:detect:url, fuzz:endpoints:url")
                 st.session_state['poc_last_status'] = "400 (unknown command)"
                 st.session_state['poc_last_time'] = timestamp
                 _safe_rerun()
@@ -562,4 +661,5 @@ def render_poc_console(target_domain: str, user_config: dict):
         st.write("**Dernière action**")
         st.write(st.session_state.get('poc_last_time', "N/A"))
 
-    st.caption(f"🔧 Mode: {'RÉEL' if allow_real else 'SIMULATION'} | Timeout: {timeout}s")
+    # ✅ CORRECTION APPLIQUÉE : Utilisation de timeout_config
+    st.caption(f"🔧 Mode: {'RÉEL' if allow_real else 'SIMULATION'} | Timeout: {timeout_config}s")
