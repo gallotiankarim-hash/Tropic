@@ -1,10 +1,8 @@
 # Logic_analyzer.py
 
 import time
-import random
 import json
 from datetime import datetime
-# 💡 CORRECTION: Ajout de l'importation du module 'typing' pour les annotations de type
 from typing import Dict, Any, List, Tuple 
 
 # ===============================================================================
@@ -16,10 +14,9 @@ class UserContext:
     def __init__(self, username: str, is_admin: bool = False):
         self.username = username
         self.is_admin = is_admin
-        self.session_id: str = f"SESSION_{random.randint(10000, 99999)}"
-        # L'admin a souvent l'ID 1 ou une valeur basse
-        self.user_db_id: str = str(random.randint(2000, 3000)) if not is_admin else "1" 
-        self.csrf_token: str = f"CSRF_{random.randint(10000, 99999)}"
+        self.session_id: str = f"SESSION_STATIC_12345"
+        self.user_db_id: str = "1001" if not is_admin else "1" 
+        self.csrf_token: str = f"CSRF_TOKEN_STATIC"
         self.logged_in: bool = False
         self.last_status: int = 0
 
@@ -36,7 +33,7 @@ class LogicTestStep:
         self.response_status: int = 0
         self.response_snippet: str = ""
 
-# Simule une base de données de jetons et d'utilisateurs (utilisée par les fonctions de simulation)
+# Simule une base de données d'utilisateurs
 USER_DB = {
     "user_a_id": "1001",
     "user_b_id": "1002"
@@ -46,53 +43,64 @@ USER_DB = {
 #                             SIMULATION DES COMMUNICATIONS
 # ===============================================================================
 
-def _simulate_network_request(context: UserContext, step: LogicTestStep) -> Tuple[int, str]:
+def _simulate_network_request(target_domain: str, context: UserContext, step: LogicTestStep) -> Tuple[int, str]:
     """
     Simule une requête HTTP vers un endpoint, en appliquant le contexte de session.
-    Retourne le statut HTTP simulé et un message de réponse.
+    La détection de faille est basée sur le domaine cible pour la rendre déterministe.
     """
-    time.sleep(0.05) # Simule le délai réseau
+    time.sleep(0.05)
     
     # 1. Vérification d'Authentification / Session
     if not context.logged_in:
         return 401, "ERR: Non authentifié."
 
-    # 2. Simulation de la vulnérabilité IDOR (Insecure Direct Object Reference)
+    # -----------------------------------------------------------
+    # LOGIQUE DÉTERMINISTE (SIMULATION BASÉE SUR LE DOMAINE CIBLE)
+    # -----------------------------------------------------------
+    is_vulnerable_target = (target_domain.lower() == "test-site.com")
+    
+    # 2. Simulation de la vulnérabilité IDOR
     if step.name == "Abus IDOR: Tente de modifier le compte d'une autre victime":
         target_id = step.abuse_payload.get('target_user_id')
         
-        # Le test IDOR est réussi (Status 200) si l'ID d'une autre victime peut être manipulé.
-        if target_id != context.user_db_id and random.random() < 0.2: # 20% de chance de trouver une vulnérabilité (IDOR)
+        if target_id != context.user_db_id and is_vulnerable_target: 
             context.last_status = 200
             step.is_vulnerable = True
             return 200, f"⚠️ SUCCESS: Données de l'utilisateur {target_id} modifiées. IDOR confirmé."
         
-        # Sécurité correcte (Status 403)
-        return 403, f"SAFE: Accès refusé à l'ID {target_id}. L'ID de session {context.user_db_id} ne correspond pas."
+        return 403, f"SAFE: Accès refusé à l'ID {target_id}. ID de session {context.user_db_id} ne correspond pas."
 
     # 3. Simulation de la vulnérabilité d'Escalade de Privilèges
     if step.name == "Escalade: Tente d'accéder à l'API Admin":
-        if not context.is_admin and random.random() < 0.1: # 10% de chance d'escalade
+        if not context.is_admin and is_vulnerable_target:
             context.last_status = 200
             step.is_vulnerable = True
             return 200, "⚠️ SUCCESS: Endpoint Admin accessible en tant qu'utilisateur standard."
         
-        # Sécurité correcte (Status 403)
         return 403, "SAFE: Accès Admin refusé. Privilèges insuffisants."
 
     # 4. Simulation de la vulnérabilité de Surcharge de Limite (Rate Limiting Abuse)
     if step.name == "Abus de limite: Tente d'envoyer 100 requêtes en 1s":
-        if random.random() < 0.15: # 15% de chance de faille de limite
+        if is_vulnerable_target:
             context.last_status = 200
             step.is_vulnerable = True
             return 200, "⚠️ SUCCESS: 100 inscriptions sans blocage (Absence de Rate Limiting)."
         
-        # Sécurité correcte (Status 429 - Too Many Requests)
         return 429, "SAFE: Limite de débit atteinte. Requête bloquée (429)."
 
 
+    # 5. Faible Complexité de Mot de Passe
+    if step.name == "Test de complexité: Tente de réinitialiser le mot de passe avec '123456'":
+        if is_vulnerable_target:
+            context.last_status = 200
+            step.is_vulnerable = True
+            return 200, "⚠️ SUCCESS: Mot de passe trivial accepté par le serveur."
+        
+        return 400, "SAFE: Le serveur a rejeté le mot de passe trivial (400 Bad Request)."
+
     # Par défaut, succès de l'étape sans abus
-    return step.expected_status, "Simulation réseau réussie.", False
+    # 🚨 CORRECTION: Renvoie SEULEMENT deux valeurs
+    return step.expected_status, "Simulation réseau réussie." 
 
 # ===============================================================================
 #                          FONCTION D'EXÉCUTION PRINCIPALE
@@ -108,7 +116,7 @@ def run_logic_analysis(target_domain: str, config: Dict[str, Any]):
     
     # 1. INITIALISATION DES CONTEXTES ET DU SCÉNARIO
     attacker_context = UserContext("Attaquant", is_admin=False)
-    victim_user_id = "5005" # ID arbitraire d'un utilisateur cible
+    victim_user_id = "5005" 
 
     # Définition du workflow de test (longue structure)
     workflow: List[LogicTestStep] = [
@@ -139,7 +147,7 @@ def run_logic_analysis(target_domain: str, config: Dict[str, Any]):
         # Étape 4: Test de Surcharge de Limite (Rate Limiting Abuse)
         LogicTestStep(
             name="Abus de limite: Tente d'envoyer 100 requêtes en 1s",
-            endpoint="/api/v1/post/create", method="POST", expected_status=429, # On ESPÈRE 429
+            endpoint="/api/v1/post/create", method="POST", expected_status=429,
             abuse_payload={"loop_count": 100},
             fail_msg="Le serveur n'a pas limité le débit des requêtes (Rate Limiting absent)."
         ),
@@ -147,7 +155,7 @@ def run_logic_analysis(target_domain: str, config: Dict[str, Any]):
         # Étape 5: Faible Complexité de Mot de Passe (Simulation de brute-force)
         LogicTestStep(
             name="Test de complexité: Tente de réinitialiser le mot de passe avec '123456'",
-            endpoint="/api/v1/auth/reset_password", method="POST", expected_status=400, # On ESPÈRE un 400 (mot de passe faible)
+            endpoint="/api/v1/auth/reset_password", method="POST", expected_status=400,
             abuse_payload={"new_password": "123456"},
             fail_msg="Le serveur a accepté un mot de passe trivial ('123456')."
         ),
@@ -155,8 +163,8 @@ def run_logic_analysis(target_domain: str, config: Dict[str, Any]):
 
     yield "[LOGIC] Démarrage du moteur d'analyse de logique métier (5 étapes)..."
     yield f"[LOGIC] Cible : {target_domain}"
+    yield f"[LOGIC] Mode Déterministe: Émule les failles si cible est 'test-site.com'."
     
-    # 💡 AJOUT DU BLOC TRY/EXCEPT POUR ASSURER LA GÉNÉRATION DU RAPPORT FINAL
     try:
         
         # 2. BOUCLE PRINCIPALE D'EXÉCUTION DU WORKFLOW
@@ -166,17 +174,17 @@ def run_logic_analysis(target_domain: str, config: Dict[str, Any]):
             
             # Logique spécifique de connexion
             if i == 0:
-                attacker_context.logged_in = True # Simulation de succès pour l'étape 1
+                attacker_context.logged_in = True 
                 response_status, msg = 200, "Connexion simulée réussie (État établi)."
             else:
-                response_status, msg = _simulate_network_request(attacker_context, step)
+                # 💡 APPEL CORRIGÉ : Passe target_domain en premier argument
+                response_status, msg = _simulate_network_request(target_domain, attacker_context, step)
 
             step.response_status = response_status
             step.response_snippet = msg
             
             # 3. ANALYSE DES RÉSULTATS
             
-            # Détection d'une vulnérabilité (réponse 200 ou un statut inattendu pour un abus)
             if step.is_vulnerable or (step.name.startswith("Abus IDOR") and response_status == 200):
                 
                 severity = "CRITICAL" if response_status == 200 else "HIGH"
@@ -195,7 +203,7 @@ def run_logic_analysis(target_domain: str, config: Dict[str, Any]):
             elif response_status == step.expected_status:
                 yield f"✅ SAFE : Le serveur a répondu {response_status} comme attendu."
             else:
-                 # Si l'attente est 429 (limite), mais on a autre chose, c'est peut-être une faille
+                # Logique pour les cas où une faille est détectée par un statut inattendu (ex: Rate Limiting absent)
                 if step.expected_status == 429 and response_status != 429:
                     vulnerability_entry = {
                         'severity': 'MEDIUM',
@@ -211,7 +219,6 @@ def run_logic_analysis(target_domain: str, config: Dict[str, Any]):
                     yield f"❗ AVERTISSEMENT : Statut inattendu {response_status} (Attendu {step.expected_status})."
         
     except Exception as e:
-        # En cas d'erreur de code inattendue, le rapport sera incomplet, mais il sera renvoyé.
         yield f"\n[LOGIC] ERREUR CRITIQUE INTERNE NON GÉRÉE: {type(e).__name__}: {e}"
         vulnerabilities.append({'severity': 'CRITICAL', 'type': 'Internal Error', 'vulnerability': str(e), 'endpoint': 'N/A', 'status_code': 500, 'proof': 'Échec interne de l\'analyse de logique.'})
 
@@ -235,5 +242,4 @@ def run_logic_analysis(target_domain: str, config: Dict[str, Any]):
     yield f"\n[LOGIC] Analyse de Logique Métier terminée. Score final: {final_score}/100"
     yield "[DONE]"
     
-    # 5. Renvoyer le rapport final (ceci est capturé par l'exception StopIteration dans app.py)
     return report
