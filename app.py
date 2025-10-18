@@ -15,14 +15,28 @@ try:
     from Recon import run_recon
     from Api_scan import run_api_scan, SECURITY_SCORE_WEIGHTS
     from Exploit_Adv import run_vulnerability_scan, simulate_poc_execution 
+    # NOUVEAUX MODULES
+    from Logic_analyzer import run_logic_analysis # Module 4
+    from report_utils import get_json_download_link # Utilitaire de téléchargement
+    
 except ImportError as e:
     # Définit des placeholders si l'importation échoue.
     def placeholder_func(*args, **kwargs):
         if kwargs.get('command'):
             return f"ERREUR CRITIQUE: Le module de sécurité est manquant. Détails: {e}", 500
         raise ImportError(f"FATAL ERROR: Security module missing or misnamed. Details: {e}") 
+        
     run_recon = run_api_scan = run_vulnerability_scan = simulate_poc_execution = placeholder_func
-    # Valeurs par défaut si le module Api_scan est manquant
+    # Définition des fonctions de remplacement pour les nouveaux imports
+    # Le placeholder de run_logic_analysis est un générateur qui renvoie le rapport de simulation d'erreur
+    def placeholder_logic_generator(target, config):
+        yield f"[ERROR] Module Logic_analyzer manquant ou introuvable: {e}"
+        yield "[DONE]"
+        return {"security_score": 0, "vulnerabilities_found": [{"message": f"Module manquant: {e}"}]}
+
+    run_logic_analysis = placeholder_logic_generator
+    get_json_download_link = lambda data, prefix: st.error("Utilitaire de rapport manquant.")
+    
     SECURITY_SCORE_WEIGHTS = {'ENDPOINT_EXPOSED': 15, 'INJECTION_VULNERABLE': 30, 'PARAM_REFLECTION': 10}
 # La console PoC (poc_console) est importée dans la fonction main() pour gérer les dépendances.
 
@@ -235,6 +249,42 @@ def display_vuln_scan_report(target):
     else:
         st.info("Aucune vulnérabilité n'a été trouvée.")
 
+def display_logic_report(report_data):
+    st.subheader("🔬 Module 4 : Résultat de l'Analyse de Logique Métier")
+    
+    score = report_data.get('security_score', 0)
+    
+    col_score, col_download = st.columns([2, 1])
+    
+    with col_score:
+        if score >= 70:
+            st.success(f"Score de Logique Métier : **{score}/100**", icon="✅")
+            st.markdown("*Niveau : **SÛR**. Aucune faille critique de logique détectée lors de la simulation.*")
+        else:
+            st.error(f"Score de Logique Métier : **{score}/100**", icon="🚨")
+            st.markdown("*Niveau : **CRITIQUE**. Des failles de logique ont été détectées.*")
+            
+    with col_download:
+        # Lien de téléchargement (utilisant le nouveau module)
+        get_json_download_link(report_data, f"{report_data['target']}_logic_scan")
+        
+    st.divider()
+    
+    vulns = report_data.get('vulnerabilities_found', [])
+    if vulns:
+        st.markdown("#### Failles de Logique Détectées :")
+        df_vulns = pd.DataFrame(vulns)
+        display_cols = ['severity', 'type', 'vulnerability', 'endpoint', 'proof']
+        st.dataframe(df_vulns.sort_values(by='severity', ascending=False)[display_cols], use_container_width=True, hide_index=True)
+    else:
+        st.info("Aucune vulnérabilité de logique métier critique trouvée.")
+        
+    # Affichage du résumé des étapes (pour le débogage et la clarté)
+    with st.expander("Voir le détail des étapes du workflow"):
+        for summary in report_data.get('steps_summary', []):
+            icon = "❌" if summary['vulnerable'] else ("✅" if summary['status'] not in [429, 400] else "⚠️")
+            st.markdown(f"{icon} **{summary['name']}** (Status final: `{summary['status']}`)")
+
 
 # ===============================================================================
 #                             INTERFACE PRINCIPALE
@@ -428,7 +478,6 @@ def main():
         """, unsafe_allow_html=True)
 
         # --- CHARGEMENT DE LA CONFIGURATION UTILISATEUR (Refonte Sidebar) ---
-        # La fonction load_user_config() a été modifiée pour utiliser st.expander
         user_config = load_user_config()
         
         all_logs = [] 
@@ -447,6 +496,10 @@ def main():
         if 'module3_running' not in st.session_state:
             st.session_state['module3_running'] = False
             
+        # NOUVEAU: initialisation de l'état du Module 4
+        if 'module4_report' not in st.session_state:
+            st.session_state['module4_report'] = None
+
         if 'shell_cmd_history' in st.session_state:
             del st.session_state['shell_cmd_history']
             
@@ -465,21 +518,25 @@ def main():
 
         # --- SÉLECTION DES MODULES ---
         st.sidebar.header("Options d'Exécution")
-        run_all = st.sidebar.checkbox("Exécuter les 3 Modules en Séquence", value=True)
+        # MISE À JOUR : Ajout du Module 4 au mode séquentiel
+        run_all = st.sidebar.checkbox("Exécuter les 4 Modules en Séquence", value=False, help="Inclut Recon, API Scan, Vuln Scan et Logique Métier.")
         
         if not run_all:
             st.sidebar.markdown("Ou sélectionner un module unique :")
             run_recon_module = st.sidebar.button("▶️ Lancer Module 1 (Reconnaissance)")
             run_api_module = st.sidebar.button("▶️ Lancer Module 2 (API Scan)")
             run_vuln_module = st.sidebar.button("▶️ Lancer Module 3 (Vuln. Scan)")
+            # NOUVEAU BOUTON : Module 4
+            run_logic_module = st.sidebar.button("🔬 Lancer Module 4 (Logique Métier)") 
         else:
-            run_sequence = st.button("🚀 Lancer l'Analyse Complète (3 Modules)", type="primary", use_container_width=True)
-            run_recon_module = run_api_module = run_vuln_module = False
+            run_sequence = st.button("🚀 Lancer l'Analyse Complète (4 Modules)", type="primary", use_container_width=True)
+            run_recon_module = run_api_module = run_vuln_module = run_logic_module = False
             if run_sequence:
-                run_recon_module = run_api_module = run_vuln_module = True
+                run_recon_module = run_api_module = run_vuln_module = run_logic_module = True
 
         # --- LOGIQUE D'EXÉCUTION ---
-        if run_recon_module or run_api_module or run_vuln_module:
+        # MISE À JOUR : Ajout de run_logic_module à la condition
+        if run_recon_module or run_api_module or run_vuln_module or run_logic_module: 
             
             if not target_domain:
                 st.error("Veuillez entrer un domaine cible.")
@@ -488,8 +545,8 @@ def main():
             os.makedirs("output", exist_ok=True)
             placeholder = st.empty()
             
-            # Définir les onglets pour les rapports AVANT l'exécution
-            tab_recon, tab_api, tab_vuln = st.tabs(["📊 Module 1: Reconnaissance", "🛡️ Module 2: Sécurité API", "🚨 Module 3: Vulnérabilités"])
+            # MISE À JOUR : Définir les onglets pour les rapports (Ajout du Module 4)
+            tab_recon, tab_api, tab_vuln, tab_logic = st.tabs(["📊 M1: Reconnaissance", "🛡️ M2: Sécurité API", "🚨 M3: Vulnérabilités", "🔬 M4: Logique Métier"])
 
             # 1. MODULE DE RECONNAISSANCE
             if run_recon_module:
@@ -596,9 +653,52 @@ def main():
                                 
                                 display_vuln_scan_report(target_domain)
                                 st.divider()
-            
-            
-            # 4. POST-SCAN EXECUTOR
+                                
+            # NOUVEAU BLOC : 4. MODULE LOGIC ANALYSIS (run_logic_analysis)
+            if run_logic_module:
+                
+                with placeholder.status(f"Module 4: Préparation de l'Analyse de Logique sur **{target_domain}**...", expanded=True) as status:
+                    
+                    start_time = datetime.now()
+                    log_area_main = st.empty()
+                    logs = ""
+                    final_report = None
+                    
+                    try:
+                        analysis_generator = run_logic_analysis(target_domain, user_config)
+                        
+                        # Streaming des logs et récupération du rapport final
+                        for log_line in analysis_generator:
+                            if log_line == "[DONE]":
+                                # La prochaine valeur du générateur est le rapport (voir Logic_analyzer.py)
+                                final_report = next(analysis_generator) 
+                                break
+                                
+                            logs = (logs + "\n" + str(log_line)).strip()
+                            log_area_main.code(logs, language='bash') 
+                            
+                    except Exception as e:
+                        st.error(f"Erreur critique lors du lancement du Module 4: {e}")
+                        scan_successful = False
+
+                    elapsed_time = (datetime.now() - start_time).total_seconds()
+                    
+                    status.update(label=f"✅ Module 4 (Logique) terminé en {elapsed_time:.2f}s", state="complete", expanded=False)
+
+                    all_logs.append(f"\n--- LOGS MODULE 4 ({elapsed_time:.2f}s) ---\n" + logs)
+                    
+                    if final_report:
+                        # Sauvegarde du rapport pour l'affichage (évite de relancer la fonction d'affichage)
+                        st.session_state['module4_report'] = final_report 
+                        with tab_logic:
+                            display_logic_report(final_report)
+                        st.divider()
+                    else:
+                        with tab_logic:
+                            st.error("Le module 4 a échoué à générer un rapport.")
+
+
+            # 5. POST-SCAN EXECUTOR
             if user_config['post_scan_command']:
                  with placeholder.status(f"🌐 Exécution de la commande Post-Scan...", expanded=True) as status:
                     output_lines = []
@@ -616,7 +716,7 @@ def main():
 
         
         # =======================================================
-        # 5. CONSOLE PoC (external)
+        # 6. CONSOLE PoC (external)
         # =======================================================
         
         # Ajout des colonnes pour l'espacement: 1 (gauche), 3 (contenu), 1 (droite)
