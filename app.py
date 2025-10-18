@@ -4,7 +4,7 @@ import pandas as pd
 import json
 import os
 import sys
-import re # Ajout nécessaire pour la fonction clean_target_domain
+import re 
 from io import StringIO
 from datetime import datetime
 import subprocess
@@ -519,13 +519,18 @@ def main():
             st.session_state['current_shell_command_input'] = ""
 
         # --- INPUT DOMAIN ---
-        raw_target_domain = st.text_input("Domaine Cible (Ex: votre-cible.com)", value="sypahwellness.com")
+        # 🚨 CORRECTION : Retrait de la valeur par défaut pour laisser le champ vide
+        raw_target_domain = st.text_input("Domaine Cible (Ex: votre-cible.com)", value="")
         
-        # 💡 CORRECTION: Nettoyage de l'entrée avant l'exécution (résout les problèmes DNS et de chemins de fichiers)
+        # Nettoyage de la cible avant l'exécution (résout les problèmes DNS et de chemins de fichiers)
         target_domain = clean_target_domain(raw_target_domain) 
         
-        if target_domain != raw_target_domain:
+        if target_domain != raw_target_domain and target_domain != "":
             st.info(f"Cible traitée : Le scan s'exécutera sur **{target_domain}**.")
+        
+        # Si le champ est vide après nettoyage, on utilise la valeur brute pour l'affichage (vide)
+        if not target_domain:
+            target_domain = raw_target_domain
 
         # --- AFFICHAGE DU SCOPE ---
         st.markdown(f"**🎯 Objectif du Test :** _{user_config['pentest_goal']}_")
@@ -555,8 +560,9 @@ def main():
         # MISE À JOUR : Ajout de run_logic_module à la condition
         if run_recon_module or run_api_module or run_vuln_module or run_logic_module: 
             
-            if not target_domain:
-                st.error("Veuillez entrer un domaine cible.")
+            # Vérification si la cible est vide AVANT de lancer l'exécution
+            if not target_domain or target_domain.strip() == "":
+                st.error("Veuillez entrer un domaine cible valide.")
                 st.stop()
 
             os.makedirs("output", exist_ok=True)
@@ -694,7 +700,7 @@ def main():
                                 log_area_main.code(logs, language='bash') 
                         
                         except StopIteration as e:
-                            # 💡 CORRECTION APPLIQUÉE : La valeur de retour du générateur est dans l'exception 'e.value'
+                            # CORRECTION APPLIQUÉE : La valeur de retour du générateur est dans l'exception 'e.value'
                             final_report = getattr(e, 'value', None) 
                         
                     except Exception as e:
